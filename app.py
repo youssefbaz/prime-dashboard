@@ -5,6 +5,13 @@ import os
 import pandas as pd
 import random
 import time
+import math
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 # ─────────────────────────────────────────────────────────
 # CONFIG
@@ -32,6 +39,254 @@ def save_data(d):
         json.dump(d, f, indent=2)
 
 data = load_data()
+
+# ─────────────────────────────────────────────────────────
+# OLLAMA INTEGRATION
+# ─────────────────────────────────────────────────────────
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+
+def ollama_available():
+    if not HAS_REQUESTS:
+        return False
+    try:
+        r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
+        return r.status_code == 200
+    except:
+        return False
+
+def ollama_models():
+    try:
+        r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
+        if r.status_code == 200:
+            return [m["name"] for m in r.json().get("models", [])]
+    except:
+        pass
+    return []
+
+def ollama_generate(prompt, model="llama3.2", max_tokens=1000):
+    try:
+        r = requests.post(f"{OLLAMA_URL}/api/generate", json={
+            "model": model, "prompt": prompt, "stream": False,
+            "options": {"num_predict": max_tokens, "temperature": 0.7}
+        }, timeout=60)
+        if r.status_code == 200:
+            return r.json().get("response", "")
+    except Exception as e:
+        return f"Error: {e}"
+    return ""
+
+def generate_quiz_question(category, week_num, model):
+    topics_by_cat = {
+        "ML Theory": "machine learning concepts like regression, classification, neural networks, NLP, model evaluation, feature engineering, ensemble methods, deep learning",
+        "System Design": "ML system design including data pipelines, model serving, A/B testing, recommendation systems, fraud detection, real-time inference, MLOps on AWS",
+        "Behavioral": "behavioral interview questions using STAR method for data science roles, covering teamwork, problem-solving, communication, leadership",
+        "SQL & Python": "SQL queries, pandas operations, Python data structures, and coding problems relevant to data science interviews",
+    }
+    topic = topics_by_cat.get(category, topics_by_cat["ML Theory"])
+    prompt = f"""You are an expert data science interviewer. Generate ONE interview question about {topic}.
+The candidate is in week {week_num} of an 8-week study program.
+
+Return ONLY a JSON object with exactly this format (no markdown, no extra text):
+{{"question": "Your interview question here", "model_answer": "A detailed model answer with key points to cover", "difficulty": "medium"}}"""
+    
+    response = ollama_generate(prompt, model)
+    try:
+        # Try to parse JSON from response
+        start = response.find("{")
+        end = response.rfind("}") + 1
+        if start >= 0 and end > start:
+            return json.loads(response[start:end])
+    except:
+        pass
+    return None
+
+def review_answer(question, user_answer, model_answer, model):
+    prompt = f"""You are an expert data science interview coach. Review this candidate's answer.
+
+QUESTION: {question}
+
+CANDIDATE'S ANSWER: {user_answer}
+
+MODEL ANSWER: {model_answer}
+
+Provide a brief review (3-5 sentences) covering:
+1. What they got right
+2. What they missed or got wrong
+3. A score out of 10
+4. One specific tip to improve
+
+Be constructive and encouraging. Start with what's good."""
+    
+    return ollama_generate(prompt, model, max_tokens=500)
+
+# ─────────────────────────────────────────────────────────
+# MOTIVATIONAL QUOTES
+# ─────────────────────────────────────────────────────────
+QUOTES = [
+    {"text": "The only way to do great work is to love what you do.", "author": "Steve Jobs"},
+    {"text": "It's not about having time, it's about making time.", "author": "Unknown"},
+    {"text": "Code is like humor. When you have to explain it, it's bad.", "author": "Cory House"},
+    {"text": "First, solve the problem. Then, write the code.", "author": "John Johnson"},
+    {"text": "The best time to plant a tree was 20 years ago. The second best time is now.", "author": "Chinese Proverb"},
+    {"text": "Consistency is what transforms average into excellence.", "author": "Unknown"},
+    {"text": "Don't watch the clock; do what it does. Keep going.", "author": "Sam Levenson"},
+    {"text": "Success is the sum of small efforts repeated day in and day out.", "author": "Robert Collier"},
+    {"text": "The expert in anything was once a beginner.", "author": "Helen Hayes"},
+    {"text": "You don't have to be great to start, but you have to start to be great.", "author": "Zig Ziglar"},
+    {"text": "Hard choices, easy life. Easy choices, hard life.", "author": "Jerzy Gregorek"},
+    {"text": "Every master was once a disaster.", "author": "T. Harv Eker"},
+    {"text": "The pain you feel today will be the strength you feel tomorrow.", "author": "Unknown"},
+    {"text": "What you do every day matters more than what you do once in a while.", "author": "Gretchen Rubin"},
+    {"text": "Talk is cheap. Show me the code.", "author": "Linus Torvalds"},
+    {"text": "Simplicity is the ultimate sophistication.", "author": "Leonardo da Vinci"},
+    {"text": "Data is the new oil, but like oil, it's valuable only when refined.", "author": "Unknown"},
+    {"text": "In God we trust. All others must bring data.", "author": "W. Edwards Deming"},
+    {"text": "The goal is to turn data into information, and information into insight.", "author": "Carly Fiorina"},
+    {"text": "Machines take me by surprise with great frequency.", "author": "Alan Turing"},
+    {"text": "Without data, you're just another person with an opinion.", "author": "W. Edwards Deming"},
+    {"text": "Discipline equals freedom.", "author": "Jocko Willink"},
+    {"text": "The impediment to action advances action. What stands in the way becomes the way.", "author": "Marcus Aurelius"},
+    {"text": "We are what we repeatedly do. Excellence is not an act, but a habit.", "author": "Aristotle"},
+    {"text": "The man who moves a mountain begins by carrying away small stones.", "author": "Confucius"},
+    {"text": "Your future self is watching you right now through memories.", "author": "Unknown"},
+    {"text": "Fall seven times, stand up eight.", "author": "Japanese Proverb"},
+    {"text": "The only limit to our realization of tomorrow will be our doubts of today.", "author": "FDR"},
+    {"text": "Do not wait to strike till the iron is hot; make it hot by striking.", "author": "W.B. Yeats"},
+    {"text": "A year from now you'll wish you had started today.", "author": "Karen Lamb"},
+]
+
+def get_daily_quote(date):
+    day_of_year = date.timetuple().tm_yday
+    return QUOTES[day_of_year % len(QUOTES)]
+
+# ─────────────────────────────────────────────────────────
+# DAILY ML CONCEPT
+# ─────────────────────────────────────────────────────────
+ML_CONCEPTS = {
+    1: [
+        "**Linear Regression** finds the best-fit line through data by minimizing the sum of squared residuals. The coefficients represent the change in y for a one-unit change in x.",
+        "**Logistic Regression** uses a sigmoid function to output probabilities between 0 and 1. Despite its name, it's a classification algorithm, not regression.",
+        "**Cost Function** measures how wrong your model's predictions are. MSE for regression, cross-entropy for classification. Gradient descent minimizes it iteratively.",
+        "**Regularization** adds a penalty term to prevent overfitting. L1 (Lasso) can zero out features. L2 (Ridge) shrinks all coefficients. ElasticNet combines both.",
+        "**Feature Engineering** is the art of creating new features from raw data. It often matters more than the model choice. Domain knowledge is key.",
+        "**Train/Test Split** prevents overfitting evaluation. Never let your model see test data during training. Use 80/20 or 70/30 splits typically.",
+    ],
+    2: [
+        "**Decision Trees** split data using the feature that best separates classes. Gini impurity and information gain guide the splits. Easy to interpret but prone to overfitting.",
+        "**Random Forests** build many trees on random subsets of data and features, then vote. This reduces variance and overfitting compared to a single tree.",
+        "**Bagging** (Bootstrap Aggregating) trains multiple models on random samples with replacement, then averages predictions. Random Forest is bagging with trees.",
+        "**Gradient Boosting** builds trees sequentially — each one corrects errors from the previous. XGBoost, LightGBM, CatBoost are popular implementations.",
+        "**XGBoost** adds regularization to gradient boosting, handles missing values natively, and uses histogram-based splitting for speed. Often wins Kaggle competitions.",
+        "**Ensemble Methods** combine multiple models for better performance. The key insight: diverse models making different errors outperform any single model.",
+    ],
+    3: [
+        "**SVM** finds the hyperplane that maximizes the margin between classes. The kernel trick maps data to higher dimensions where it becomes linearly separable.",
+        "**K-Means** partitions data into k clusters by iteratively assigning points to the nearest centroid and updating centroids. Choose k using the elbow method.",
+        "**DBSCAN** finds clusters of arbitrary shape by looking at density. Points in dense regions are core points; sparse points are noise. No need to specify k.",
+        "**PCA** reduces dimensions by finding directions of maximum variance. The first principal component captures the most variance. Useful for visualization and denoising.",
+        "**Evaluation Metrics**: Accuracy can be misleading with imbalanced classes. Precision (of predicted positives, how many correct), Recall (of actual positives, how many found).",
+        "**ROC-AUC** plots TPR vs FPR at every threshold. AUC=1 is perfect, 0.5 is random. Use PR-AUC for imbalanced datasets instead.",
+    ],
+    4: [
+        "**Neural Networks** are layers of connected nodes. Each node applies weights, a bias, and an activation function. Backpropagation adjusts weights to minimize loss.",
+        "**Activation Functions**: ReLU (max(0,x)) solved the vanishing gradient problem. Sigmoid squashes to 0-1. Softmax outputs a probability distribution over classes.",
+        "**CNNs** use convolutional filters to detect local patterns (edges, textures) in images. Pooling layers reduce dimensions. Deeper layers detect higher-level features.",
+        "**RNNs** process sequences by maintaining hidden state. LSTMs add gates to control what to remember/forget, solving the vanishing gradient problem in long sequences.",
+        "**Transfer Learning** uses a model pre-trained on a large dataset (ImageNet, Wikipedia) and fine-tunes it on your smaller dataset. Massive time and data savings.",
+        "**Batch Normalization** normalizes layer inputs during training, allowing higher learning rates and reducing sensitivity to initialization. Almost always helps.",
+    ],
+    5: [
+        "**Tokenization** splits text into tokens (words, subwords, characters). BPE (Byte-Pair Encoding) finds the optimal subword vocabulary. Critical first step in NLP.",
+        "**TF-IDF** weighs words by how important they are to a document relative to a corpus. High TF-IDF = rare in corpus but frequent in document. Simple but effective.",
+        "**Word Embeddings** (Word2Vec, GloVe) map words to dense vectors where similar words are close. king - man + woman ≈ queen. Foundation of modern NLP.",
+        "**Transformers** use self-attention to process entire sequences in parallel. Each token attends to all other tokens. Key innovation: Query, Key, Value matrices.",
+        "**BERT** is a transformer trained by masking random words and predicting them. Bidirectional context understanding. Fine-tune for classification, NER, QA tasks.",
+        "**LLMs** (GPT, LLaMA) are massive transformers trained on internet text. They predict the next token. Few-shot learning via prompting is their superpower.",
+    ],
+    6: [
+        "**K-Fold Cross-Validation** splits data into k folds, trains on k-1, tests on 1, rotates. Average score is more reliable than a single split. Stratified preserves class ratios.",
+        "**Grid Search** tries every combination of hyperparameters. Exhaustive but slow. Random search samples randomly and often finds good params faster.",
+        "**Bias-Variance Tradeoff**: High bias = underfitting (too simple). High variance = overfitting (too complex). Sweet spot minimizes total error.",
+        "**Overfitting** means your model memorizes training data instead of learning patterns. Signs: training accuracy >> test accuracy. Fix: more data, regularization, simpler model.",
+        "**Feature Selection**: Filter methods (correlation), wrapper methods (recursive elimination), embedded methods (L1 regularization). Fewer features = less overfitting + faster training.",
+        "**Learning Curves** plot performance vs training set size. If train and test curves converge high, model is good. If gap remains, try more data or simpler model.",
+    ],
+    7: [
+        "**ARIMA** (AutoRegressive Integrated Moving Average) forecasts time series using past values, differences for stationarity, and past errors. (p,d,q) params control complexity.",
+        "**Prophet** by Facebook handles seasonality, holidays, and trend changepoints automatically. Great for business forecasting. Robust to missing data and outliers.",
+        "**Bayesian Methods** update beliefs with evidence using Bayes' theorem: P(A|B) = P(B|A)·P(A)/P(B). Prior → Evidence → Posterior. Quantifies uncertainty naturally.",
+        "**Reinforcement Learning**: Agent takes actions in environment, receives rewards. Q-learning learns value of state-action pairs. Policy gradient directly optimizes the policy.",
+        "**SHAP** (SHapley Additive exPlanations) assigns each feature a contribution to the prediction. Based on game theory. Model-agnostic and theoretically grounded.",
+        "**LIME** explains individual predictions by fitting a simple model locally around the data point. Quick and intuitive, but can be unstable.",
+    ],
+    8: [
+        "**AutoML** automates model selection, feature engineering, and hyperparameter tuning. Tools: H2O, AutoGluon, SageMaker Autopilot. Great baseline, but understand what it does.",
+        "**ML System Design**: Data ingestion → Feature store → Training pipeline → Model registry → Serving (batch/real-time) → Monitoring → Retraining. Each stage matters.",
+        "**A/B Testing**: Split users randomly, expose groups to different models, measure metrics. Statistical significance tells you if the difference is real, not noise.",
+        "**Data Pipelines**: ETL (Extract, Transform, Load) moves data from sources to warehouses. Airflow, Prefect, Dagster orchestrate. Idempotent tasks prevent duplicates.",
+        "**MLOps** applies DevOps to ML: version data and models, automate training, monitor drift, enable rollbacks. CI/CD but for machine learning.",
+        "**Model Monitoring**: Track input drift (feature distributions change), concept drift (relationship changes), and performance degradation. Alert and retrain proactively.",
+    ],
+}
+
+def get_daily_concept(date, week):
+    w = max(1, min(8, week))
+    concepts = ML_CONCEPTS.get(w, ML_CONCEPTS[1])
+    day_idx = date.weekday()  # 0=Mon, 6=Sun
+    if day_idx >= len(concepts):
+        day_idx = day_idx % len(concepts)
+    return concepts[day_idx]
+
+# ─────────────────────────────────────────────────────────
+# SPACED REPETITION (SM-2 Algorithm)
+# ─────────────────────────────────────────────────────────
+def sm2_update(card_id, quality, flash_data):
+    """
+    SM-2 spaced repetition algorithm.
+    quality: 0-5 (0=total blackout, 5=perfect recall)
+    Returns updated card data.
+    """
+    card = flash_data.get(card_id, {"ef": 2.5, "interval": 1, "reps": 0, "next_review": datetime.date.today().isoformat()})
+    ef = card.get("ef", 2.5)
+    interval = card.get("interval", 1)
+    reps = card.get("reps", 0)
+
+    if quality >= 3:  # Correct
+        if reps == 0:
+            interval = 1
+        elif reps == 1:
+            interval = 6
+        else:
+            interval = round(interval * ef)
+        reps += 1
+    else:  # Incorrect
+        reps = 0
+        interval = 1
+
+    ef = max(1.3, ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)))
+    next_review = (datetime.date.today() + datetime.timedelta(days=interval)).isoformat()
+
+    card = {"ef": round(ef, 2), "interval": interval, "reps": reps, "next_review": next_review, "last_quality": quality}
+    flash_data[card_id] = card
+    return flash_data
+
+def get_due_cards(flash_data, all_cards):
+    """Get cards due for review today, sorted by priority."""
+    today_str = datetime.date.today().isoformat()
+    due = []
+    new = []
+    for i, card in enumerate(all_cards):
+        card_id = str(i)
+        if card_id in flash_data:
+            if flash_data[card_id].get("next_review", "") <= today_str:
+                due.append((i, flash_data[card_id].get("ef", 2.5)))
+        else:
+            new.append(i)
+    # Sort due cards by easiness factor (hardest first)
+    due.sort(key=lambda x: x[1])
+    due_indices = [d[0] for d in due]
+    # Add some new cards
+    return due_indices + new[:3]
 
 # ─────────────────────────────────────────────────────────
 # DYNAMIC SCHEDULE DATA (by week)
@@ -317,6 +572,25 @@ st.markdown(f'<p class="hdr-date">{today.strftime("%A, %B %d, %Y")}</p>', unsafe
 st.markdown(f'<p class="hdr-vibe">{tasks_today["emoji"]} {tasks_today["vibe"]}<span class="tm">{now.strftime("%I:%M %p")}</span></p>', unsafe_allow_html=True)
 st.markdown("")
 
+# DAILY QUOTE
+quote = get_daily_quote(today)
+st.markdown(f"""
+<div style="background:linear-gradient(135deg, rgba(99,102,241,0.06), rgba(236,72,153,0.04));border:1px solid rgba(99,102,241,0.12);border-radius:14px;padding:18px 24px;margin-bottom:16px;">
+    <div style="font-size:15px;color:#cbd5e1;font-style:italic;line-height:1.6;">"{quote['text']}"</div>
+    <div style="font-size:12px;color:#818cf8;margin-top:6px;font-family:'JetBrains Mono',monospace;">— {quote['author']}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# DAILY ML CONCEPT
+if not is_sunday:
+    concept = get_daily_concept(today, week_num)
+    st.markdown(f"""
+    <div style="background:rgba(244,114,182,0.04);border:1px solid rgba(244,114,182,0.12);border-radius:14px;padding:16px 22px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#f472b6;font-family:'JetBrains Mono',monospace;margin-bottom:8px;">🧠 ML concept of the day — Week {week_num}</div>
+        <div style="font-size:14px;color:#cbd5e1;line-height:1.6;">{concept}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # MISSED ALERT
 missed = get_missed()
 if missed:
@@ -357,10 +631,70 @@ cp = round((cc / len(CHECKLIST)) * 100)
 bc = "linear-gradient(90deg,#10b981,#34d399)" if cp == 100 else "linear-gradient(90deg,#6366f1,#a78bfa)"
 st.markdown(f'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-family:\'JetBrains Mono\',monospace;">Today\'s progress</span><span style="font-size:14px;font-weight:700;color:{"#34d399" if cp==100 else "#818cf8"};font-family:\'JetBrains Mono\',monospace;">{cc}/{len(CHECKLIST)}</span></div><div class="pbar-outer"><div class="pbar-inner" style="width:{cp}%;background:{bc};"></div></div>', unsafe_allow_html=True)
 
+# WEEKLY COMPARISON
+all_checks = data.get("daily_checks", {})
+this_week_start = today - datetime.timedelta(days=today.weekday())
+last_week_start = this_week_start - datetime.timedelta(days=7)
+
+this_week_completed = 0
+this_week_days = 0
+last_week_completed = 0
+last_week_days = 0
+
+for d_str, checks in all_checks.items():
+    d = datetime.date.fromisoformat(d_str)
+    completed = sum(1 for v in checks.values() if v and v is not True or v == True)
+    completed = sum(1 for v in checks.values() if v)
+    if this_week_start <= d <= today:
+        this_week_completed += completed
+        this_week_days += 1
+    elif last_week_start <= d < this_week_start:
+        last_week_completed += completed
+        last_week_days += 1
+
+this_week_jobs = sum(1 for j in data.get("jobs", []) if j.get("date", "") >= this_week_start.isoformat())
+last_week_jobs = sum(1 for j in data.get("jobs", []) if last_week_start.isoformat() <= j.get("date", "") < this_week_start.isoformat())
+
+# Weight comparison
+this_week_weights = [(d, w) for d, w in ws.items() if d >= this_week_start.isoformat()]
+last_week_weights = [(d, w) for d, w in ws.items() if last_week_start.isoformat() <= d < this_week_start.isoformat()]
+tw_avg = round(sum(w for _, w in this_week_weights) / len(this_week_weights), 1) if this_week_weights else None
+lw_avg = round(sum(w for _, w in last_week_weights) / len(last_week_weights), 1) if last_week_weights else None
+
+if last_week_days > 0 or this_week_days > 0:
+    st.markdown('<div class="sec-title">📊 This week vs last week</div>', unsafe_allow_html=True)
+    wc1, wc2, wc3, wc4 = st.columns(4)
+    
+    def trend_arrow(curr, prev):
+        if curr is None or prev is None: return "", "#64748b"
+        if curr > prev: return "▲", "#34d399"
+        elif curr < prev: return "▼", "#ef4444"
+        return "—", "#fbbf24"
+    
+    with wc1:
+        arr, col = trend_arrow(this_week_completed, last_week_completed)
+        st.markdown(f'<div class="s-card"><div class="s-label">Tasks done</div><div class="s-val" style="color:{col};font-size:22px;">{this_week_completed} <span style="font-size:14px;">{arr}</span></div><div class="s-sub">Last week: {last_week_completed}</div></div>', unsafe_allow_html=True)
+    with wc2:
+        arr, col = trend_arrow(this_week_jobs, last_week_jobs)
+        st.markdown(f'<div class="s-card"><div class="s-label">Jobs applied</div><div class="s-val" style="color:{col};font-size:22px;">{this_week_jobs} <span style="font-size:14px;">{arr}</span></div><div class="s-sub">Last week: {last_week_jobs}</div></div>', unsafe_allow_html=True)
+    with wc3:
+        arr, col = trend_arrow(this_week_days, last_week_days)
+        st.markdown(f'<div class="s-card"><div class="s-label">Active days</div><div class="s-val" style="color:{col};font-size:22px;">{this_week_days} <span style="font-size:14px;">{arr}</span></div><div class="s-sub">Last week: {last_week_days}</div></div>', unsafe_allow_html=True)
+    with wc4:
+        if tw_avg and lw_avg:
+            diff = round(lw_avg - tw_avg, 1)
+            arr = "▼" if diff > 0 else "▲"
+            col = "#34d399" if diff > 0 else "#ef4444"
+            st.markdown(f'<div class="s-card"><div class="s-label">Avg weight</div><div class="s-val" style="color:{col};font-size:22px;">{tw_avg} <span style="font-size:14px;">{arr}</span></div><div class="s-sub">Last week: {lw_avg}</div></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="s-card"><div class="s-label">Avg weight</div><div class="s-val" style="color:#64748b;font-size:22px;">—</div><div class="s-sub">Log weight to compare</div></div>', unsafe_allow_html=True)
+
+    st.markdown("")
+
 # ─────────────────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["📋 Today", "⏱️ Timer", "📅 Week", "💼 Jobs", "📊 Charts", "🃏 Cards", "🧪 Quiz", "🍽️ Meals"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📋 Today", "⏱️ Timer", "📅 Week", "💼 Jobs", "📊 Charts", "🃏 Cards", "🧪 Quiz", "🤖 AI Quiz", "🍽️ Meals"])
 
 # ═══════════════ TAB: TODAY ═══════════════
 with tab1:
@@ -586,25 +920,58 @@ with tab5:
     if not all_checks and not ws and not jobs:
         st.info("Charts will appear once you start logging data!")
 
-# ═══════════════ TAB: FLASHCARDS ═══════════════
+# ═══════════════ TAB: FLASHCARDS (Spaced Repetition) ═══════════════
 with tab6:
-    st.markdown('<div class="sec-title">Flashcards</div>', unsafe_allow_html=True)
-
+    st.markdown('<div class="sec-title">Flashcards — Spaced repetition</div>', unsafe_allow_html=True)
+    
+    flash_data = data.get("flash_scores", {})
+    
     cat_filter = st.selectbox("Category", ["All", "ML", "AWS", "SQL"], key="flash_cat")
     cards = FLASHCARDS if cat_filter == "All" else [c for c in FLASHCARDS if c["cat"] == cat_filter]
-
+    
+    # Get due cards
+    due_indices = get_due_cards(flash_data, cards)
+    total_due = len([i for i in due_indices if str(i) in flash_data])
+    total_new = len([i for i in due_indices if str(i) not in flash_data])
+    
+    st.markdown(f"""
+    <div style="display:flex;gap:16px;margin-bottom:16px;">
+        <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);border-radius:8px;padding:8px 16px;">
+            <span style="font-size:12px;color:#f87171;font-family:'JetBrains Mono',monospace;font-weight:600;">Due: {total_due}</span>
+        </div>
+        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.15);border-radius:8px;padding:8px 16px;">
+            <span style="font-size:12px;color:#818cf8;font-family:'JetBrains Mono',monospace;font-weight:600;">New: {total_new}</span>
+        </div>
+        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);border-radius:8px;padding:8px 16px;">
+            <span style="font-size:12px;color:#34d399;font-family:'JetBrains Mono',monospace;font-weight:600;">Mastered: {len(flash_data) - total_due}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     if "flash_idx" not in st.session_state:
         st.session_state.flash_idx = 0
     if "flash_show" not in st.session_state:
         st.session_state.flash_show = False
 
-    idx = st.session_state.flash_idx % len(cards)
+    # Use due cards if available, otherwise all cards
+    card_order = due_indices if due_indices else list(range(len(cards)))
+    if not card_order:
+        card_order = [0]
+    
+    current_pos = st.session_state.flash_idx % len(card_order)
+    idx = card_order[current_pos]
     card = cards[idx]
 
     cat_colors = {"ML": "color:#f472b6;background:rgba(244,114,182,0.1);", "AWS": "color:#60a5fa;background:rgba(96,165,250,0.1);", "SQL": "color:#fbbf24;background:rgba(251,191,36,0.1);"}
     cat_style = cat_colors.get(card["cat"], "color:#818cf8;background:rgba(129,140,248,0.1);")
+    
+    # Card info
+    card_info = flash_data.get(str(idx), {})
+    interval = card_info.get("interval", 0)
+    ef = card_info.get("ef", 2.5)
+    status = "New" if str(idx) not in flash_data else f"Next in {interval}d · EF: {ef}"
 
-    st.markdown(f'<div class="flash-card"><div class="flash-cat" style="{cat_style}">{card["cat"]}</div><div class="flash-q">{card["q"]}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="flash-card"><div class="flash-cat" style="{cat_style}">{card["cat"]} · {status}</div><div class="flash-q">{card["q"]}</div>', unsafe_allow_html=True)
     
     if st.session_state.flash_show:
         st.markdown(f'<div class="flash-a">{card["a"]}</div>', unsafe_allow_html=True)
@@ -613,21 +980,39 @@ with tab6:
     fc1, fc2, fc3 = st.columns(3)
     with fc1:
         if st.button("⬅️ Previous", use_container_width=True, key="fprev"):
-            st.session_state.flash_idx = (idx - 1) % len(cards)
+            st.session_state.flash_idx = (current_pos - 1) % len(card_order)
             st.session_state.flash_show = False; st.rerun()
     with fc2:
         if st.button("👁️ Show answer" if not st.session_state.flash_show else "🙈 Hide", use_container_width=True, key="fshow"):
             st.session_state.flash_show = not st.session_state.flash_show; st.rerun()
     with fc3:
         if st.button("➡️ Next", use_container_width=True, key="fnext"):
-            st.session_state.flash_idx = (idx + 1) % len(cards)
+            st.session_state.flash_idx = (current_pos + 1) % len(card_order)
             st.session_state.flash_show = False; st.rerun()
+    
+    # Rating buttons (only show after revealing answer)
+    if st.session_state.flash_show:
+        st.markdown("")
+        st.markdown('<div style="font-size:13px;color:#94a3b8;text-align:center;margin-bottom:8px;">How well did you know this?</div>', unsafe_allow_html=True)
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        with rc1:
+            if st.button("😵 Again (0)", use_container_width=True, key="rate0"):
+                data["flash_scores"] = sm2_update(str(idx), 0, data.get("flash_scores", {}))
+                save_data(data); st.session_state.flash_idx = (current_pos + 1) % len(card_order); st.session_state.flash_show = False; st.rerun()
+        with rc2:
+            if st.button("😟 Hard (2)", use_container_width=True, key="rate2"):
+                data["flash_scores"] = sm2_update(str(idx), 2, data.get("flash_scores", {}))
+                save_data(data); st.session_state.flash_idx = (current_pos + 1) % len(card_order); st.session_state.flash_show = False; st.rerun()
+        with rc3:
+            if st.button("🙂 Good (4)", use_container_width=True, key="rate4"):
+                data["flash_scores"] = sm2_update(str(idx), 4, data.get("flash_scores", {}))
+                save_data(data); st.session_state.flash_idx = (current_pos + 1) % len(card_order); st.session_state.flash_show = False; st.rerun()
+        with rc4:
+            if st.button("🤩 Easy (5)", use_container_width=True, key="rate5"):
+                data["flash_scores"] = sm2_update(str(idx), 5, data.get("flash_scores", {}))
+                save_data(data); st.session_state.flash_idx = (current_pos + 1) % len(card_order); st.session_state.flash_show = False; st.rerun()
 
-    if st.button("🔀 Shuffle", use_container_width=True, key="fshuffle"):
-        st.session_state.flash_idx = random.randint(0, len(cards) - 1)
-        st.session_state.flash_show = False; st.rerun()
-
-    st.markdown(f'<div style="text-align:center;color:#475569;font-size:13px;margin-top:12px;font-family:\'JetBrains Mono\',monospace;">Card {idx + 1} of {len(cards)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="text-align:center;color:#475569;font-size:13px;margin-top:12px;font-family:\'JetBrains Mono\',monospace;">Card {current_pos + 1} of {len(card_order)}</div>', unsafe_allow_html=True)
 
 # ═══════════════ TAB: QUIZ ═══════════════
 with tab7:
@@ -674,8 +1059,136 @@ with tab7:
         }
         save_data(data); st.success("Answer saved!")
 
-# ═══════════════ TAB: MEALS ═══════════════
+# ═══════════════ TAB: AI QUIZ (Ollama) ═══════════════
 with tab8:
+    st.markdown('<div class="sec-title">AI-powered interview prep</div>', unsafe_allow_html=True)
+    
+    # Check Ollama
+    ollama_ok = ollama_available()
+    
+    if ollama_ok:
+        models = ollama_models()
+        st.markdown(f"""
+        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected</span>
+            <span style="font-size:12px;color:#64748b;margin-left:12px;">{len(models)} model(s) available</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        ac1, ac2 = st.columns([2, 1])
+        with ac1:
+            ai_cat = st.selectbox("Question category", ["ML Theory", "System Design", "Behavioral", "SQL & Python"], key="ai_cat")
+        with ac2:
+            selected_model = st.selectbox("Ollama model", models, key="ai_model") if models else "llama3.2"
+        
+        # Generate question
+        if st.button("🎲 Generate new question", use_container_width=True, key="ai_gen"):
+            with st.spinner("Generating question with " + str(selected_model) + "..."):
+                result = generate_quiz_question(ai_cat, week_num, selected_model)
+                if result:
+                    st.session_state.ai_question = result.get("question", "")
+                    st.session_state.ai_model_answer = result.get("model_answer", "")
+                    st.session_state.ai_difficulty = result.get("difficulty", "medium")
+                    st.session_state.ai_review = None
+                    st.session_state.ai_show_answer = False
+                else:
+                    st.error("Couldn't generate question. Try again or check your Ollama model.")
+        
+        # Display question
+        if "ai_question" in st.session_state and st.session_state.ai_question:
+            diff_colors = {"easy": "#34d399", "medium": "#fbbf24", "hard": "#ef4444"}
+            diff = st.session_state.get("ai_difficulty", "medium")
+            diff_col = diff_colors.get(diff, "#fbbf24")
+            
+            st.markdown(f"""
+            <div class="flash-card">
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <div class="flash-cat" style="color:#818cf8;background:rgba(129,140,248,0.1);">{ai_cat}</div>
+                    <div class="flash-cat" style="color:{diff_col};background:{diff_col}15;">{diff}</div>
+                    <div class="flash-cat" style="color:#64748b;background:rgba(100,116,139,0.1);">AI generated</div>
+                </div>
+                <div class="flash-q">{st.session_state.ai_question}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            ai_answer = st.text_area("Your answer:", height=150, key="ai_user_answer", placeholder="Write your answer here, then get AI feedback...")
+            
+            abc1, abc2 = st.columns(2)
+            with abc1:
+                show_label = "🙈 Hide model answer" if st.session_state.get("ai_show_answer", False) else "🔍 Show model answer"
+                if st.button(show_label, use_container_width=True, key="ai_show"):
+                    st.session_state.ai_show_answer = not st.session_state.get("ai_show_answer", False)
+                    st.rerun()
+            with abc2:
+                if ai_answer and st.button("🤖 Review my answer", use_container_width=True, key="ai_review_btn"):
+                    with st.spinner("Reviewing with " + str(selected_model) + "..."):
+                        review = review_answer(
+                            st.session_state.ai_question,
+                            ai_answer,
+                            st.session_state.get("ai_model_answer", ""),
+                            selected_model
+                        )
+                        st.session_state.ai_review = review
+                        st.rerun()
+            
+            # Show model answer
+            if st.session_state.get("ai_show_answer", False):
+                st.markdown(f"""
+                <div class="flash-card" style="border-color:rgba(52,211,153,0.2);background:rgba(52,211,153,0.04);">
+                    <div style="font-size:12px;font-weight:600;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">Model answer</div>
+                    <div style="font-size:15px;color:#94a3b8;line-height:1.6;">{st.session_state.get('ai_model_answer', '')}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Show AI review
+            if st.session_state.get("ai_review"):
+                st.markdown(f"""
+                <div class="flash-card" style="border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.04);">
+                    <div style="font-size:12px;font-weight:600;color:#818cf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">🤖 AI review</div>
+                    <div style="font-size:15px;color:#cbd5e1;line-height:1.7;">{st.session_state.ai_review}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Save
+            if ai_answer and st.button("💾 Save this session", use_container_width=True, key="ai_save"):
+                data.setdefault("quiz_history", {})[f"ai_{today_str}_{int(time.time())}"] = {
+                    "question": st.session_state.ai_question,
+                    "user_answer": ai_answer,
+                    "model_answer": st.session_state.get("ai_model_answer", ""),
+                    "review": st.session_state.get("ai_review", ""),
+                    "category": ai_cat,
+                    "date": today_str,
+                    "ai_generated": True
+                }
+                save_data(data)
+                st.success("Session saved! ✅")
+    
+    else:
+        st.markdown("""
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#fbbf24;font-weight:600;">🔴 Ollama not detected</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        This tab uses your **local Ollama models** to generate fresh interview questions and review your answers with AI.
+        
+        **To set up:**
+        1. Install Ollama: [ollama.com](https://ollama.com)
+        2. Pull a model: `ollama pull llama3.2`
+        3. Run the app locally: `streamlit run app.py`
+        
+        **What it does:**
+        - Generates unique interview questions each time (ML, System Design, Behavioral, SQL)
+        - Reviews your answers and gives feedback with a score
+        - Questions adapt to your current week in the roadmap
+        - All sessions are saved for review
+        
+        **On Streamlit Cloud?** Use the regular **🧪 Quiz** tab instead — it has a solid static question bank.
+        """)
+
+# ═══════════════ TAB: MEALS ═══════════════
+with tab9:
     st.markdown('<div class="sec-title">Daily meals</div>', unsafe_allow_html=True)
     mcs = st.columns(4)
     for i, m in enumerate(MEALS):
