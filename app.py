@@ -13,6 +13,114 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
+try:
+    import anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
+# ─────────────────────────────────────────────────────────
+# CLAUDE API INTEGRATION
+# ─────────────────────────────────────────────────────────
+def get_claude_client():
+    """Get Claude API client using Streamlit secrets."""
+    if not HAS_ANTHROPIC:
+        return None
+    try:
+        api_key = st.secrets.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
+        if api_key:
+            return anthropic.Anthropic(api_key=api_key)
+    except Exception:
+        pass
+    return None
+
+def claude_available():
+    client = get_claude_client()
+    return client is not None
+
+def claude_generate(prompt, system_prompt="You are a helpful AI assistant.", max_tokens=1500):
+    """Generate a response using Claude API."""
+    client = get_claude_client()
+    if not client:
+        return None
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return message.content[0].text
+    except Exception as e:
+        return f"Error: {e}"
+
+def claude_generate_quiz(category, week_num):
+    """Generate a fresh interview question using Claude."""
+    system = """You are an expert data science interviewer. Generate challenging but fair interview questions.
+Always respond with ONLY a valid JSON object, no markdown, no extra text."""
+    
+    prompt = f"""Generate ONE {category} interview question for a data science candidate in week {week_num} of an 8-week intensive program.
+
+Return ONLY this JSON format:
+{{"question": "Your interview question here", "model_answer": "A comprehensive model answer (3-5 key points)", "difficulty": "medium", "category": "{category}"}}"""
+    
+    response = claude_generate(prompt, system, max_tokens=800)
+    if response:
+        try:
+            start = response.find("{")
+            end = response.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(response[start:end])
+        except:
+            pass
+    return None
+
+def claude_review_answer(question, user_answer, model_answer):
+    """Review a user's interview answer using Claude."""
+    system = "You are an expert data science interview coach. Be constructive, specific, and encouraging."
+    
+    prompt = f"""Review this candidate's interview answer.
+
+QUESTION: {question}
+
+CANDIDATE'S ANSWER: {user_answer}
+
+MODEL ANSWER: {model_answer}
+
+Provide:
+1. Score: X/10
+2. What they got right (be specific)
+3. What they missed or should improve
+4. One actionable tip for next time
+
+Keep it concise (4-6 sentences). Start with the score."""
+    
+    return claude_generate(prompt, system, max_tokens=500)
+
+def claude_generate_cover_letter(resume_text, job_offer, language="English"):
+    """Generate a tailored motivation/cover letter using Claude."""
+    system = f"""You are an expert career coach and professional writer. Write compelling, personalized cover letters in {language}.
+Never be generic. Every sentence should connect the candidate's experience to the specific job requirements."""
+    
+    prompt = f"""Write a professional motivation/cover letter based on this resume and job offer.
+
+=== RESUME ===
+{resume_text}
+
+=== JOB OFFER ===
+{job_offer}
+
+Guidelines:
+- Match the candidate's skills and experience to the job requirements
+- Highlight relevant projects and achievements
+- Show genuine enthusiasm for the specific role and company
+- Keep it to 3-4 paragraphs (around 300-400 words)
+- Professional but personal tone — not robotic
+- Include a strong opening hook and confident closing
+- Write in {language}"""
+    
+    return claude_generate(prompt, system, max_tokens=1500)
+
 # ─────────────────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────────────────
@@ -694,7 +802,7 @@ if last_week_days > 0 or this_week_days > 0:
 # ─────────────────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📋 Today", "⏱️ Timer", "📅 Week", "💼 Jobs", "📊 Charts", "🃏 Cards", "🧪 Quiz", "🤖 AI Quiz", "🍽️ Meals"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📋 Today", "⏱️ Timer", "📅 Week", "💼 Jobs", "📊 Charts", "🃏 Cards", "🧪 Quiz", "🤖 AI Quiz", "📝 Cover Letter", "🍽️ Meals"])
 
 # ═══════════════ TAB: TODAY ═══════════════
 with tab1:
@@ -1014,50 +1122,151 @@ with tab6:
 
     st.markdown(f'<div style="text-align:center;color:#475569;font-size:13px;margin-top:12px;font-family:\'JetBrains Mono\',monospace;">Card {current_pos + 1} of {len(card_order)}</div>', unsafe_allow_html=True)
 
-# ═══════════════ TAB: QUIZ ═══════════════
+# ═══════════════ TAB: QUIZ (Claude API) ═══════════════
 with tab7:
     st.markdown('<div class="sec-title">Interview prep quiz</div>', unsafe_allow_html=True)
+    
+    has_claude = claude_available()
+    
+    if has_claude:
+        st.markdown("""
+        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#818cf8;font-weight:600;">🟣 Claude API connected — fresh questions every time</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        qz_c1, qz_c2 = st.columns([2, 1])
+        with qz_c1:
+            quiz_cat = st.selectbox("Category", ["ML Theory", "System Design", "Behavioral", "SQL & Python"], key="quiz_cat")
+        with qz_c2:
+            quiz_lang = st.selectbox("Language", ["English", "French"], key="quiz_lang")
+        
+        # Generate new question
+        if st.button("🎲 Generate new question", use_container_width=True, key="gen_q"):
+            with st.spinner("Claude is crafting a question..."):
+                result = claude_generate_quiz(quiz_cat, week_num)
+                if result:
+                    st.session_state.cq_question = result.get("question", "")
+                    st.session_state.cq_model_answer = result.get("model_answer", "")
+                    st.session_state.cq_difficulty = result.get("difficulty", "medium")
+                    st.session_state.cq_category = quiz_cat
+                    st.session_state.cq_show = False
+                    st.session_state.cq_review = None
+                else:
+                    st.error("Couldn't generate a question. Check your API key in Streamlit Secrets.")
+        
+        # Display question
+        if "cq_question" in st.session_state and st.session_state.cq_question:
+            diff_colors = {"easy": "#34d399", "medium": "#fbbf24", "hard": "#ef4444"}
+            diff = st.session_state.get("cq_difficulty", "medium")
+            diff_col = diff_colors.get(diff, "#fbbf24")
+            
+            st.markdown(f"""
+            <div class="flash-card">
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <div class="flash-cat" style="color:#818cf8;background:rgba(129,140,248,0.1);">{st.session_state.get('cq_category', quiz_cat)}</div>
+                    <div class="flash-cat" style="color:{diff_col};background:{diff_col}15;">{diff}</div>
+                    <div class="flash-cat" style="color:#a78bfa;background:rgba(167,139,250,0.1);">Claude generated</div>
+                </div>
+                <div class="flash-q">{st.session_state.cq_question}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            user_answer = st.text_area("Your answer:", height=150, key="cq_user_answer", placeholder="Write your answer, then get AI feedback...")
+            
+            abc1, abc2 = st.columns(2)
+            with abc1:
+                show_label = "🙈 Hide model answer" if st.session_state.get("cq_show", False) else "🔍 Show model answer"
+                if st.button(show_label, use_container_width=True, key="cq_show_btn"):
+                    st.session_state.cq_show = not st.session_state.get("cq_show", False)
+                    st.rerun()
+            with abc2:
+                if user_answer and st.button("🤖 Review my answer", use_container_width=True, key="cq_review_btn"):
+                    with st.spinner("Claude is reviewing your answer..."):
+                        review = claude_review_answer(
+                            st.session_state.cq_question,
+                            user_answer,
+                            st.session_state.get("cq_model_answer", "")
+                        )
+                        st.session_state.cq_review = review
+                        st.rerun()
+            
+            if st.session_state.get("cq_show", False):
+                st.markdown(f"""
+                <div class="flash-card" style="border-color:rgba(52,211,153,0.2);background:rgba(52,211,153,0.04);">
+                    <div style="font-size:12px;font-weight:600;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">Model answer</div>
+                    <div style="font-size:15px;color:#94a3b8;line-height:1.6;">{st.session_state.get('cq_model_answer', '')}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            if st.session_state.get("cq_review"):
+                st.markdown(f"""
+                <div class="flash-card" style="border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.04);">
+                    <div style="font-size:12px;font-weight:600;color:#818cf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">🤖 Claude's review</div>
+                    <div style="font-size:15px;color:#cbd5e1;line-height:1.7;">{st.session_state.cq_review}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            if user_answer and st.button("💾 Save this session", use_container_width=True, key="cq_save"):
+                data.setdefault("quiz_history", {})[f"claude_{today_str}_{int(time.time())}"] = {
+                    "question": st.session_state.cq_question,
+                    "user_answer": user_answer,
+                    "model_answer": st.session_state.get("cq_model_answer", ""),
+                    "review": st.session_state.get("cq_review", ""),
+                    "category": st.session_state.get("cq_category", quiz_cat),
+                    "date": today_str, "source": "claude_api"
+                }
+                save_data(data); st.success("Session saved! ✅")
+        else:
+            st.info("Click **Generate new question** to get a fresh interview question from Claude.")
+    
+    else:
+        # Fallback to static questions
+        st.markdown("""
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#fbbf24;font-weight:600;">⚡ Using static question bank — add your Claude API key for fresh AI-generated questions</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        quiz_cat = st.selectbox("Category", ["All", "ML Theory", "System Design", "Behavioral"], key="quiz_cat")
+        qs = QUIZ_QUESTIONS if quiz_cat == "All" else [q for q in QUIZ_QUESTIONS if q["cat"] == quiz_cat]
 
-    quiz_cat = st.selectbox("Category", ["All", "ML Theory", "System Design", "Behavioral"], key="quiz_cat")
-    qs = QUIZ_QUESTIONS if quiz_cat == "All" else [q for q in QUIZ_QUESTIONS if q["cat"] == quiz_cat]
-
-    if "quiz_idx" not in st.session_state:
-        st.session_state.quiz_idx = random.randint(0, len(qs) - 1)
-    if "quiz_show" not in st.session_state:
-        st.session_state.quiz_show = False
-
-    qidx = st.session_state.quiz_idx % len(qs)
-    question = qs[qidx]
-
-    qcat_colors = {"ML Theory": "color:#f472b6;background:rgba(244,114,182,0.1);", "System Design": "color:#34d399;background:rgba(52,211,153,0.1);", "Behavioral": "color:#fbbf24;background:rgba(251,191,36,0.1);"}
-    qcat_style = qcat_colors.get(question["cat"], "color:#818cf8;background:rgba(129,140,248,0.1);")
-
-    st.markdown(f'<div class="flash-card"><div class="flash-cat" style="{qcat_style}">{question["cat"]}</div><div class="flash-q">{question["q"]}</div></div>', unsafe_allow_html=True)
-
-    user_answer = st.text_area("Your answer:", height=120, key="quiz_answer", placeholder="Think through your answer before revealing the model response...")
-
-    if st.session_state.quiz_show:
-        st.markdown(f'<div class="flash-card" style="border-color:rgba(52,211,153,0.2);background:rgba(52,211,153,0.04);"><div style="font-size:12px;font-weight:600;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:\'JetBrains Mono\',monospace;">Model answer</div><div style="font-size:15px;color:#94a3b8;line-height:1.6;">{question["a"]}</div></div>', unsafe_allow_html=True)
-
-    qc1, qc2 = st.columns(2)
-    with qc1:
-        if st.button("🔍 Reveal answer" if not st.session_state.quiz_show else "🙈 Hide answer", use_container_width=True, key="qshow"):
-            st.session_state.quiz_show = not st.session_state.quiz_show; st.rerun()
-    with qc2:
-        if st.button("🎲 Next question", use_container_width=True, key="qnext"):
+        if "quiz_idx" not in st.session_state:
             st.session_state.quiz_idx = random.randint(0, len(qs) - 1)
-            st.session_state.quiz_show = False; st.rerun()
+        if "quiz_show" not in st.session_state:
+            st.session_state.quiz_show = False
 
-    # Quiz history
-    quiz_history = data.get("quiz_history", {})
-    total_attempted = len(quiz_history)
-    st.markdown(f'<div style="text-align:center;color:#475569;font-size:13px;margin-top:16px;font-family:\'JetBrains Mono\',monospace;">Questions practiced: {total_attempted}</div>', unsafe_allow_html=True)
+        qidx = st.session_state.quiz_idx % len(qs)
+        question = qs[qidx]
 
-    if user_answer and st.button("💾 Save my answer", use_container_width=True, key="qsave"):
-        data.setdefault("quiz_history", {})[f"{today_str}_{qidx}"] = {
-            "question": question["q"], "user_answer": user_answer, "date": today_str
-        }
-        save_data(data); st.success("Answer saved!")
+        qcat_colors = {"ML Theory": "color:#f472b6;background:rgba(244,114,182,0.1);", "System Design": "color:#34d399;background:rgba(52,211,153,0.1);", "Behavioral": "color:#fbbf24;background:rgba(251,191,36,0.1);"}
+        qcat_style = qcat_colors.get(question["cat"], "color:#818cf8;background:rgba(129,140,248,0.1);")
+
+        st.markdown(f'<div class="flash-card"><div class="flash-cat" style="{qcat_style}">{question["cat"]}</div><div class="flash-q">{question["q"]}</div></div>', unsafe_allow_html=True)
+
+        user_answer = st.text_area("Your answer:", height=120, key="quiz_answer", placeholder="Think through your answer before revealing the model response...")
+
+        if st.session_state.quiz_show:
+            st.markdown(f'<div class="flash-card" style="border-color:rgba(52,211,153,0.2);background:rgba(52,211,153,0.04);"><div style="font-size:12px;font-weight:600;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:\'JetBrains Mono\',monospace;">Model answer</div><div style="font-size:15px;color:#94a3b8;line-height:1.6;">{question["a"]}</div></div>', unsafe_allow_html=True)
+
+        qc1, qc2 = st.columns(2)
+        with qc1:
+            if st.button("🔍 Reveal answer" if not st.session_state.quiz_show else "🙈 Hide answer", use_container_width=True, key="qshow"):
+                st.session_state.quiz_show = not st.session_state.quiz_show; st.rerun()
+        with qc2:
+            if st.button("🎲 Next question", use_container_width=True, key="qnext"):
+                st.session_state.quiz_idx = random.randint(0, len(qs) - 1)
+                st.session_state.quiz_show = False; st.rerun()
+
+        quiz_history = data.get("quiz_history", {})
+        total_attempted = len(quiz_history)
+        st.markdown(f'<div style="text-align:center;color:#475569;font-size:13px;margin-top:16px;font-family:\'JetBrains Mono\',monospace;">Questions practiced: {total_attempted}</div>', unsafe_allow_html=True)
+
+        if user_answer and st.button("💾 Save my answer", use_container_width=True, key="qsave"):
+            data.setdefault("quiz_history", {})[f"{today_str}_{qidx}"] = {
+                "question": question["q"], "user_answer": user_answer, "date": today_str
+            }
+            save_data(data); st.success("Answer saved!")
 
 # ═══════════════ TAB: AI QUIZ (Ollama) ═══════════════
 with tab8:
@@ -1187,8 +1396,154 @@ with tab8:
         **On Streamlit Cloud?** Use the regular **🧪 Quiz** tab instead — it has a solid static question bank.
         """)
 
-# ═══════════════ TAB: MEALS ═══════════════
+# ═══════════════ TAB: COVER LETTER ═══════════════
 with tab9:
+    st.markdown('<div class="sec-title">Motivation letter generator</div>', unsafe_allow_html=True)
+    
+    has_claude_cl = claude_available()
+    
+    if has_claude_cl:
+        st.markdown("""
+        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#818cf8;font-weight:600;">🟣 Claude API connected — paste a job offer + upload your resume to generate a tailored cover letter</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        cl_c1, cl_c2 = st.columns([1, 1])
+        
+        with cl_c1:
+            st.markdown("**📄 Your resume**")
+            resume_method = st.radio("How to provide your resume:", ["Upload PDF/TXT", "Paste text"], horizontal=True, key="resume_method")
+            
+            resume_text = ""
+            if resume_method == "Upload PDF/TXT":
+                uploaded_file = st.file_uploader("Upload your resume", type=["pdf", "txt", "md"], key="resume_upload")
+                if uploaded_file:
+                    if uploaded_file.type == "application/pdf":
+                        try:
+                            import io
+                            # Try to extract text from PDF
+                            pdf_bytes = uploaded_file.read()
+                            # Simple extraction - try different methods
+                            try:
+                                import PyPDF2
+                                reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+                                resume_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+                            except ImportError:
+                                try:
+                                    import pdfplumber
+                                    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                                        resume_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+                                except ImportError:
+                                    resume_text = pdf_bytes.decode("utf-8", errors="ignore")
+                        except Exception as e:
+                            st.warning(f"Couldn't parse PDF: {e}. Try pasting your resume text instead.")
+                    else:
+                        resume_text = uploaded_file.read().decode("utf-8", errors="ignore")
+                    
+                    if resume_text:
+                        st.success(f"Resume loaded — {len(resume_text)} characters")
+                        with st.expander("Preview resume text"):
+                            st.text(resume_text[:2000] + ("..." if len(resume_text) > 2000 else ""))
+            else:
+                resume_text = st.text_area("Paste your resume here:", height=250, key="resume_paste", placeholder="Paste your full resume text...")
+        
+        with cl_c2:
+            st.markdown("**🏢 Job offer**")
+            job_offer = st.text_area("Paste the job offer here:", height=300, key="job_offer_text", placeholder="Paste the full job description — title, requirements, company info...")
+        
+        st.markdown("")
+        lang_col, tone_col = st.columns(2)
+        with lang_col:
+            cl_language = st.selectbox("Language", ["English", "French", "Both (English + French)"], key="cl_lang")
+        with tone_col:
+            cl_tone = st.selectbox("Tone", ["Professional & confident", "Warm & enthusiastic", "Formal & corporate", "Creative & bold"], key="cl_tone")
+        
+        if st.button("✨ Generate cover letter", use_container_width=True, type="primary", key="gen_cl"):
+            if resume_text and job_offer:
+                languages = ["English", "French"] if cl_language == "Both (English + French)" else [cl_language]
+                
+                for lang in languages:
+                    with st.spinner(f"Claude is writing your cover letter in {lang}..."):
+                        tone_instruction = f"Use a {cl_tone.lower()} tone."
+                        letter = claude_generate_cover_letter(
+                            resume_text, 
+                            job_offer + f"\n\n{tone_instruction}",
+                            lang
+                        )
+                        
+                        if letter:
+                            st.session_state[f"cover_letter_{lang.lower()}"] = letter
+                
+                st.rerun()
+            else:
+                st.warning("Please provide both your resume and the job offer.")
+        
+        # Display generated letters
+        for lang in ["english", "french"]:
+            key = f"cover_letter_{lang}"
+            if key in st.session_state and st.session_state[key]:
+                st.markdown(f"""
+                <div class="flash-card" style="border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.03);">
+                    <div style="font-size:12px;font-weight:600;color:#818cf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;font-family:'JetBrains Mono',monospace;">📝 Cover letter — {lang.title()}</div>
+                    <div style="font-size:15px;color:#e2e8f0;line-height:1.8;white-space:pre-wrap;">{st.session_state[key]}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Copy button
+                cp1, cp2 = st.columns(2)
+                with cp1:
+                    if st.button(f"📋 Copy {lang.title()} version", use_container_width=True, key=f"copy_{lang}"):
+                        st.code(st.session_state[key], language=None)
+                        st.info("Select all text above and copy (Ctrl+C)")
+                with cp2:
+                    if st.button(f"💾 Save {lang.title()} version", use_container_width=True, key=f"save_cl_{lang}"):
+                        data.setdefault("cover_letters", []).append({
+                            "letter": st.session_state[key],
+                            "language": lang,
+                            "date": today_str,
+                            "job_snippet": job_offer[:200] if job_offer else ""
+                        })
+                        save_data(data)
+                        st.success(f"{lang.title()} cover letter saved!")
+        
+        # History
+        saved_letters = data.get("cover_letters", [])
+        if saved_letters:
+            st.markdown("")
+            with st.expander(f"📚 Saved cover letters ({len(saved_letters)})"):
+                for i, cl in enumerate(reversed(saved_letters[-10:])):
+                    st.markdown(f"**{cl.get('date', '')}** — {cl.get('language', '').title()} — {cl.get('job_snippet', '')[:80]}...")
+                    with st.expander(f"View letter #{len(saved_letters) - i}"):
+                        st.text(cl.get("letter", ""))
+    
+    else:
+        st.markdown("""
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#fbbf24;font-weight:600;">🔑 Claude API key required</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        To use the cover letter generator, add your Claude API key:
+        
+        **On Streamlit Cloud:**
+        1. Go to your app dashboard → **Settings** → **Secrets**
+        2. Add this:
+        ```
+        ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+        ```
+        3. Save and reboot the app
+        
+        **Running locally:**
+        1. Create a file `.streamlit/secrets.toml` in your project folder
+        2. Add: `ANTHROPIC_API_KEY = "sk-ant-your-key-here"`
+        
+        Get your API key at [console.anthropic.com](https://console.anthropic.com)
+        """)
+
+# ═══════════════ TAB: MEALS ═══════════════
+with tab10:
     st.markdown('<div class="sec-title">Daily meals</div>', unsafe_allow_html=True)
     mcs = st.columns(4)
     for i, m in enumerate(MEALS):
