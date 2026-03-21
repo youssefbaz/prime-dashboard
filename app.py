@@ -13,58 +13,66 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
-try:
-    import anthropic
-    HAS_ANTHROPIC = True
-except ImportError:
-    HAS_ANTHROPIC = False
+# ─────────────────────────────────────────────────────────
+# AI ENGINE — Ollama only (free, local, private)
+# ─────────────────────────────────────────────────────────
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
-# ─────────────────────────────────────────────────────────
-# CLAUDE API INTEGRATION
-# ─────────────────────────────────────────────────────────
-def get_claude_client():
-    """Get Claude API client using Streamlit secrets."""
-    if not HAS_ANTHROPIC:
-        return None
+def ollama_available():
+    if not HAS_REQUESTS:
+        return False
     try:
-        api_key = st.secrets.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
-        if api_key:
-            return anthropic.Anthropic(api_key=api_key)
-    except Exception:
+        r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
+        return r.status_code == 200
+    except:
+        return False
+
+def ollama_models():
+    try:
+        r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
+        if r.status_code == 200:
+            return [m["name"] for m in r.json().get("models", [])]
+    except:
         pass
-    return None
+    return []
 
-def claude_available():
-    client = get_claude_client()
-    return client is not None
+def get_default_model():
+    models = ollama_models()
+    for m in models:
+        if "qwen3" in m.lower():
+            return m
+    return models[0] if models else "qwen3:14b"
 
-def claude_generate(prompt, system_prompt="You are a helpful AI assistant.", max_tokens=1500):
-    """Generate a response using Claude API."""
-    client = get_claude_client()
-    if not client:
-        return None
+def ollama_generate(prompt, model=None, max_tokens=1500):
+    if not model:
+        model = get_default_model()
     try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return message.content[0].text
+        r = requests.post(f"{OLLAMA_URL}/api/generate", json={
+            "model": model, "prompt": prompt, "stream": False,
+            "options": {"num_predict": max_tokens, "temperature": 0.7}
+        }, timeout=120)
+        if r.status_code == 200:
+            return r.json().get("response", "")
     except Exception as e:
         return f"Error: {e}"
+    return ""
 
-def claude_generate_quiz(category, week_num):
-    """Generate a fresh interview question using Claude."""
-    system = """You are an expert data science interviewer. Generate challenging but fair interview questions.
-Always respond with ONLY a valid JSON object, no markdown, no extra text."""
-    
-    prompt = f"""Generate ONE {category} interview question for a data science candidate in week {week_num} of an 8-week intensive program.
+def ai_generate_quiz(category, week_num, model=None):
+    """Generate a fresh interview question using Ollama."""
+    topics = {
+        "ML Theory": "machine learning concepts like regression, classification, neural networks, NLP, model evaluation, ensemble methods, deep learning",
+        "System Design": "ML system design including data pipelines, model serving, A/B testing, recommendation systems, fraud detection, MLOps on AWS",
+        "Behavioral": "behavioral interview questions using STAR method for data science roles, teamwork, problem-solving, leadership",
+        "SQL & Python": "SQL queries, pandas operations, Python data structures, and coding problems for data science interviews",
+    }
+    topic = topics.get(category, topics["ML Theory"])
+    prompt = f"""You are an expert data science interviewer. Generate ONE interview question about {topic}.
+The candidate is in week {week_num} of an 8-week study program.
 
-Return ONLY this JSON format:
-{{"question": "Your interview question here", "model_answer": "A comprehensive model answer (3-5 key points)", "difficulty": "medium", "category": "{category}"}}"""
+Return ONLY a JSON object with this exact format, nothing else:
+{{"question": "Your interview question here", "model_answer": "A detailed model answer with key points", "difficulty": "medium", "category": "{category}"}}"""
     
-    response = claude_generate(prompt, system, max_tokens=800)
+    response = ollama_generate(prompt, model, max_tokens=800)
     if response:
         try:
             start = response.find("{")
@@ -75,11 +83,9 @@ Return ONLY this JSON format:
             pass
     return None
 
-def claude_review_answer(question, user_answer, model_answer):
-    """Review a user's interview answer using Claude."""
-    system = "You are an expert data science interview coach. Be constructive, specific, and encouraging."
-    
-    prompt = f"""Review this candidate's interview answer.
+def ai_review_answer(question, user_answer, model_answer, model=None):
+    """Review a user's interview answer using Ollama."""
+    prompt = f"""You are an expert data science interview coach. Review this candidate's answer.
 
 QUESTION: {question}
 
@@ -93,16 +99,13 @@ Provide:
 3. What they missed or should improve
 4. One actionable tip for next time
 
-Keep it concise (4-6 sentences). Start with the score."""
+Keep it concise (4-6 sentences). Start with the score. Be constructive and encouraging."""
     
-    return claude_generate(prompt, system, max_tokens=500)
+    return ollama_generate(prompt, model, max_tokens=500)
 
-def claude_generate_cover_letter(resume_text, job_offer, language="English"):
-    """Generate a tailored motivation/cover letter using Claude."""
-    system = f"""You are an expert career coach and professional writer. Write compelling, personalized cover letters in {language}.
-Never be generic. Every sentence should connect the candidate's experience to the specific job requirements."""
-    
-    prompt = f"""Write a professional motivation/cover letter based on this resume and job offer.
+def ai_generate_cover_letter(resume_text, job_offer, language="English", model=None):
+    """Generate a tailored cover letter using Ollama."""
+    prompt = f"""You are an expert career coach and professional writer. Write a compelling, personalized cover letter in {language}.
 
 === RESUME ===
 {resume_text}
@@ -117,9 +120,10 @@ Guidelines:
 - Keep it to 3-4 paragraphs (around 300-400 words)
 - Professional but personal tone — not robotic
 - Include a strong opening hook and confident closing
-- Write in {language}"""
+- Write in {language}
+- Never be generic. Every sentence should connect experience to this specific job."""
     
-    return claude_generate(prompt, system, max_tokens=1500)
+    return ollama_generate(prompt, model, max_tokens=2000)
 
 # ─────────────────────────────────────────────────────────
 # CONFIG
@@ -663,7 +667,7 @@ with st.sidebar:
         save_data(data); st.success(f"Saved {wi} kg")
     st.markdown("---")
     st.markdown("### 📝 Note")
-    note = st.text_area("", value=data.get("notes", {}).get(today_str, ""), height=100, label_visibility="collapsed")
+    note = st.text_area("Quick note", value=data.get("notes", {}).get(today_str, ""), height=100, label_visibility="collapsed")
     if st.button("💾 Save note", use_container_width=True):
         data.setdefault("notes", {})[today_str] = note
         save_data(data); st.success("Saved")
@@ -802,7 +806,7 @@ if last_week_days > 0 or this_week_days > 0:
 # ─────────────────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📋 Today", "⏱️ Timer", "📅 Week", "💼 Jobs", "📊 Charts", "🃏 Cards", "🧪 Quiz", "🤖 AI Quiz", "📝 Cover Letter", "🍽️ Meals"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📋 Today", "⏱️ Timer", "📅 Week", "💼 Jobs", "📊 Charts", "🃏 Cards", "🧪 Quiz", "📝 Cover Letter", "🍽️ Meals"])
 
 # ═══════════════ TAB: TODAY ═══════════════
 with tab1:
@@ -971,11 +975,12 @@ with tab4:
         
         for j in reversed(jobs[-20:]):
             sc = status_colors.get(j["status"], "#64748b")
+            cl_badge = '<span style="font-size:10px;color:#818cf8;background:rgba(129,140,248,0.12);padding:2px 8px;border-radius:4px;margin-left:8px;font-family:\'JetBrains Mono\',monospace;">📝 cover letter</span>' if j.get("has_cover_letter") else ""
             st.markdown(f"""
             <div class="job-row">
                 <div>
                     <span style="font-weight:600;color:#e2e8f0;font-size:14px;">{j['company']}</span>
-                    <span style="color:#64748b;margin-left:8px;font-size:13px;">{j['role']}</span>
+                    <span style="color:#64748b;margin-left:8px;font-size:13px;">{j['role']}</span>{cl_badge}
                     {f'<div style="font-size:12px;color:#475569;margin-top:2px;">{j.get("note","")}</div>' if j.get("note") else ""}
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;">
@@ -1122,16 +1127,18 @@ with tab6:
 
     st.markdown(f'<div style="text-align:center;color:#475569;font-size:13px;margin-top:12px;font-family:\'JetBrains Mono\',monospace;">Card {current_pos + 1} of {len(card_order)}</div>', unsafe_allow_html=True)
 
-# ═══════════════ TAB: QUIZ (Claude API) ═══════════════
+# ═══════════════ TAB: QUIZ (Ollama) ═══════════════
 with tab7:
     st.markdown('<div class="sec-title">Interview prep quiz</div>', unsafe_allow_html=True)
     
-    has_claude = claude_available()
+    ollama_ok = ollama_available()
     
-    if has_claude:
-        st.markdown("""
-        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-            <span style="font-size:13px;color:#818cf8;font-weight:600;">🟣 Claude API connected — fresh questions every time</span>
+    if ollama_ok:
+        models = ollama_models()
+        default_model = get_default_model()
+        st.markdown(f"""
+        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected — {default_model} — fresh questions every time</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1139,12 +1146,11 @@ with tab7:
         with qz_c1:
             quiz_cat = st.selectbox("Category", ["ML Theory", "System Design", "Behavioral", "SQL & Python"], key="quiz_cat")
         with qz_c2:
-            quiz_lang = st.selectbox("Language", ["English", "French"], key="quiz_lang")
+            selected_model = st.selectbox("Model", models, index=models.index(default_model) if default_model in models else 0, key="quiz_model")
         
-        # Generate new question
         if st.button("🎲 Generate new question", use_container_width=True, key="gen_q"):
-            with st.spinner("Claude is crafting a question..."):
-                result = claude_generate_quiz(quiz_cat, week_num)
+            with st.spinner(f"Generating question with {selected_model}..."):
+                result = ai_generate_quiz(quiz_cat, week_num, selected_model)
                 if result:
                     st.session_state.cq_question = result.get("question", "")
                     st.session_state.cq_model_answer = result.get("model_answer", "")
@@ -1153,9 +1159,8 @@ with tab7:
                     st.session_state.cq_show = False
                     st.session_state.cq_review = None
                 else:
-                    st.error("Couldn't generate a question. Check your API key in Streamlit Secrets.")
+                    st.error("Couldn't generate a question. Try again or check your Ollama model.")
         
-        # Display question
         if "cq_question" in st.session_state and st.session_state.cq_question:
             diff_colors = {"easy": "#34d399", "medium": "#fbbf24", "hard": "#ef4444"}
             diff = st.session_state.get("cq_difficulty", "medium")
@@ -1166,7 +1171,7 @@ with tab7:
                 <div style="display:flex;gap:8px;margin-bottom:12px;">
                     <div class="flash-cat" style="color:#818cf8;background:rgba(129,140,248,0.1);">{st.session_state.get('cq_category', quiz_cat)}</div>
                     <div class="flash-cat" style="color:{diff_col};background:{diff_col}15;">{diff}</div>
-                    <div class="flash-cat" style="color:#a78bfa;background:rgba(167,139,250,0.1);">Claude generated</div>
+                    <div class="flash-cat" style="color:#34d399;background:rgba(52,211,153,0.1);">Ollama</div>
                 </div>
                 <div class="flash-q">{st.session_state.cq_question}</div>
             </div>
@@ -1182,11 +1187,12 @@ with tab7:
                     st.rerun()
             with abc2:
                 if user_answer and st.button("🤖 Review my answer", use_container_width=True, key="cq_review_btn"):
-                    with st.spinner("Claude is reviewing your answer..."):
-                        review = claude_review_answer(
+                    with st.spinner(f"Reviewing with {selected_model}..."):
+                        review = ai_review_answer(
                             st.session_state.cq_question,
                             user_answer,
-                            st.session_state.get("cq_model_answer", "")
+                            st.session_state.get("cq_model_answer", ""),
+                            selected_model
                         )
                         st.session_state.cq_review = review
                         st.rerun()
@@ -1201,30 +1207,30 @@ with tab7:
             
             if st.session_state.get("cq_review"):
                 st.markdown(f"""
-                <div class="flash-card" style="border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.04);">
-                    <div style="font-size:12px;font-weight:600;color:#818cf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">🤖 Claude's review</div>
+                <div class="flash-card" style="border-color:rgba(16,185,129,0.2);background:rgba(16,185,129,0.04);">
+                    <div style="font-size:12px;font-weight:600;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">🤖 AI review</div>
                     <div style="font-size:15px;color:#cbd5e1;line-height:1.7;">{st.session_state.cq_review}</div>
                 </div>
                 """, unsafe_allow_html=True)
             
             if user_answer and st.button("💾 Save this session", use_container_width=True, key="cq_save"):
-                data.setdefault("quiz_history", {})[f"claude_{today_str}_{int(time.time())}"] = {
-                    "question": st.session_state.cq_question,
-                    "user_answer": user_answer,
+                data.setdefault("quiz_history", {})[f"ollama_{today_str}_{int(time.time())}"] = {
+                    "question": st.session_state.cq_question, "user_answer": user_answer,
                     "model_answer": st.session_state.get("cq_model_answer", ""),
                     "review": st.session_state.get("cq_review", ""),
                     "category": st.session_state.get("cq_category", quiz_cat),
-                    "date": today_str, "source": "claude_api"
+                    "date": today_str, "source": "ollama"
                 }
                 save_data(data); st.success("Session saved! ✅")
         else:
-            st.info("Click **Generate new question** to get a fresh interview question from Claude.")
+            st.info("Click **Generate new question** to get a fresh interview question.")
     
     else:
-        # Fallback to static questions
+        # No Ollama — static fallback
         st.markdown("""
         <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-            <span style="font-size:13px;color:#fbbf24;font-weight:600;">⚡ Using static question bank — add your Claude API key for fresh AI-generated questions</span>
+            <span style="font-size:13px;color:#fbbf24;font-weight:600;">⚡ Ollama not running — using static question bank</span>
+            <div style="font-size:12px;color:#92400e;margin-top:4px;">Start Ollama (<code>ollama serve</code>) for AI-generated questions.</div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1243,169 +1249,38 @@ with tab7:
         qcat_style = qcat_colors.get(question["cat"], "color:#818cf8;background:rgba(129,140,248,0.1);")
 
         st.markdown(f'<div class="flash-card"><div class="flash-cat" style="{qcat_style}">{question["cat"]}</div><div class="flash-q">{question["q"]}</div></div>', unsafe_allow_html=True)
-
-        user_answer = st.text_area("Your answer:", height=120, key="quiz_answer", placeholder="Think through your answer before revealing the model response...")
+        user_answer = st.text_area("Your answer:", height=120, key="quiz_answer", placeholder="Think through your answer...")
 
         if st.session_state.quiz_show:
             st.markdown(f'<div class="flash-card" style="border-color:rgba(52,211,153,0.2);background:rgba(52,211,153,0.04);"><div style="font-size:12px;font-weight:600;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:\'JetBrains Mono\',monospace;">Model answer</div><div style="font-size:15px;color:#94a3b8;line-height:1.6;">{question["a"]}</div></div>', unsafe_allow_html=True)
 
         qc1, qc2 = st.columns(2)
         with qc1:
-            if st.button("🔍 Reveal answer" if not st.session_state.quiz_show else "🙈 Hide answer", use_container_width=True, key="qshow"):
+            if st.button("🔍 Reveal answer" if not st.session_state.quiz_show else "🙈 Hide", use_container_width=True, key="qshow"):
                 st.session_state.quiz_show = not st.session_state.quiz_show; st.rerun()
         with qc2:
             if st.button("🎲 Next question", use_container_width=True, key="qnext"):
                 st.session_state.quiz_idx = random.randint(0, len(qs) - 1)
                 st.session_state.quiz_show = False; st.rerun()
 
-        quiz_history = data.get("quiz_history", {})
-        total_attempted = len(quiz_history)
-        st.markdown(f'<div style="text-align:center;color:#475569;font-size:13px;margin-top:16px;font-family:\'JetBrains Mono\',monospace;">Questions practiced: {total_attempted}</div>', unsafe_allow_html=True)
-
-        if user_answer and st.button("💾 Save my answer", use_container_width=True, key="qsave"):
-            data.setdefault("quiz_history", {})[f"{today_str}_{qidx}"] = {
+        if user_answer and st.button("💾 Save answer", use_container_width=True, key="qsave"):
+            data.setdefault("quiz_history", {})[f"static_{today_str}_{qidx}"] = {
                 "question": question["q"], "user_answer": user_answer, "date": today_str
             }
-            save_data(data); st.success("Answer saved!")
-
-# ═══════════════ TAB: AI QUIZ (Ollama) ═══════════════
-with tab8:
-    st.markdown('<div class="sec-title">AI-powered interview prep</div>', unsafe_allow_html=True)
-    
-    # Check Ollama
-    ollama_ok = ollama_available()
-    
-    if ollama_ok:
-        models = ollama_models()
-        st.markdown(f"""
-        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-            <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected</span>
-            <span style="font-size:12px;color:#64748b;margin-left:12px;">{len(models)} model(s) available</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        ac1, ac2 = st.columns([2, 1])
-        with ac1:
-            ai_cat = st.selectbox("Question category", ["ML Theory", "System Design", "Behavioral", "SQL & Python"], key="ai_cat")
-        with ac2:
-            selected_model = st.selectbox("Ollama model", models, key="ai_model") if models else "llama3.2"
-        
-        # Generate question
-        if st.button("🎲 Generate new question", use_container_width=True, key="ai_gen"):
-            with st.spinner("Generating question with " + str(selected_model) + "..."):
-                result = generate_quiz_question(ai_cat, week_num, selected_model)
-                if result:
-                    st.session_state.ai_question = result.get("question", "")
-                    st.session_state.ai_model_answer = result.get("model_answer", "")
-                    st.session_state.ai_difficulty = result.get("difficulty", "medium")
-                    st.session_state.ai_review = None
-                    st.session_state.ai_show_answer = False
-                else:
-                    st.error("Couldn't generate question. Try again or check your Ollama model.")
-        
-        # Display question
-        if "ai_question" in st.session_state and st.session_state.ai_question:
-            diff_colors = {"easy": "#34d399", "medium": "#fbbf24", "hard": "#ef4444"}
-            diff = st.session_state.get("ai_difficulty", "medium")
-            diff_col = diff_colors.get(diff, "#fbbf24")
-            
-            st.markdown(f"""
-            <div class="flash-card">
-                <div style="display:flex;gap:8px;margin-bottom:12px;">
-                    <div class="flash-cat" style="color:#818cf8;background:rgba(129,140,248,0.1);">{ai_cat}</div>
-                    <div class="flash-cat" style="color:{diff_col};background:{diff_col}15;">{diff}</div>
-                    <div class="flash-cat" style="color:#64748b;background:rgba(100,116,139,0.1);">AI generated</div>
-                </div>
-                <div class="flash-q">{st.session_state.ai_question}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            ai_answer = st.text_area("Your answer:", height=150, key="ai_user_answer", placeholder="Write your answer here, then get AI feedback...")
-            
-            abc1, abc2 = st.columns(2)
-            with abc1:
-                show_label = "🙈 Hide model answer" if st.session_state.get("ai_show_answer", False) else "🔍 Show model answer"
-                if st.button(show_label, use_container_width=True, key="ai_show"):
-                    st.session_state.ai_show_answer = not st.session_state.get("ai_show_answer", False)
-                    st.rerun()
-            with abc2:
-                if ai_answer and st.button("🤖 Review my answer", use_container_width=True, key="ai_review_btn"):
-                    with st.spinner("Reviewing with " + str(selected_model) + "..."):
-                        review = review_answer(
-                            st.session_state.ai_question,
-                            ai_answer,
-                            st.session_state.get("ai_model_answer", ""),
-                            selected_model
-                        )
-                        st.session_state.ai_review = review
-                        st.rerun()
-            
-            # Show model answer
-            if st.session_state.get("ai_show_answer", False):
-                st.markdown(f"""
-                <div class="flash-card" style="border-color:rgba(52,211,153,0.2);background:rgba(52,211,153,0.04);">
-                    <div style="font-size:12px;font-weight:600;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">Model answer</div>
-                    <div style="font-size:15px;color:#94a3b8;line-height:1.6;">{st.session_state.get('ai_model_answer', '')}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Show AI review
-            if st.session_state.get("ai_review"):
-                st.markdown(f"""
-                <div class="flash-card" style="border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.04);">
-                    <div style="font-size:12px;font-weight:600;color:#818cf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;">🤖 AI review</div>
-                    <div style="font-size:15px;color:#cbd5e1;line-height:1.7;">{st.session_state.ai_review}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Save
-            if ai_answer and st.button("💾 Save this session", use_container_width=True, key="ai_save"):
-                data.setdefault("quiz_history", {})[f"ai_{today_str}_{int(time.time())}"] = {
-                    "question": st.session_state.ai_question,
-                    "user_answer": ai_answer,
-                    "model_answer": st.session_state.get("ai_model_answer", ""),
-                    "review": st.session_state.get("ai_review", ""),
-                    "category": ai_cat,
-                    "date": today_str,
-                    "ai_generated": True
-                }
-                save_data(data)
-                st.success("Session saved! ✅")
-    
-    else:
-        st.markdown("""
-        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-            <span style="font-size:13px;color:#fbbf24;font-weight:600;">🔴 Ollama not detected</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        This tab uses your **local Ollama models** to generate fresh interview questions and review your answers with AI.
-        
-        **To set up:**
-        1. Install Ollama: [ollama.com](https://ollama.com)
-        2. Pull a model: `ollama pull llama3.2`
-        3. Run the app locally: `streamlit run app.py`
-        
-        **What it does:**
-        - Generates unique interview questions each time (ML, System Design, Behavioral, SQL)
-        - Reviews your answers and gives feedback with a score
-        - Questions adapt to your current week in the roadmap
-        - All sessions are saved for review
-        
-        **On Streamlit Cloud?** Use the regular **🧪 Quiz** tab instead — it has a solid static question bank.
-        """)
+            save_data(data); st.success("Saved!")
 
 # ═══════════════ TAB: COVER LETTER ═══════════════
-with tab9:
+with tab8:
     st.markdown('<div class="sec-title">Motivation letter generator</div>', unsafe_allow_html=True)
     
-    has_claude_cl = claude_available()
+    ollama_ok_cl = ollama_available()
     
-    if has_claude_cl:
-        st.markdown("""
-        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-            <span style="font-size:13px;color:#818cf8;font-weight:600;">🟣 Claude API connected — paste a job offer + upload your resume to generate a tailored cover letter</span>
+    if ollama_ok_cl:
+        models_cl = ollama_models()
+        default_model_cl = get_default_model()
+        st.markdown(f"""
+        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+            <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected — {default_model_cl}</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1422,139 +1297,391 @@ with tab9:
                     if uploaded_file.type == "application/pdf":
                         try:
                             import io
-                            # Try to extract text from PDF
                             pdf_bytes = uploaded_file.read()
-                            # Simple extraction - try different methods
                             try:
                                 import PyPDF2
-                                reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
-                                resume_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+                                resume_text = "\n".join(page.extract_text() or "" for page in pdf_reader.pages)
                             except ImportError:
-                                try:
-                                    import pdfplumber
-                                    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                                        resume_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-                                except ImportError:
-                                    resume_text = pdf_bytes.decode("utf-8", errors="ignore")
+                                resume_text = pdf_bytes.decode("utf-8", errors="ignore")
                         except Exception as e:
-                            st.warning(f"Couldn't parse PDF: {e}. Try pasting your resume text instead.")
+                            st.warning(f"Couldn't parse PDF: {e}. Try pasting text instead.")
                     else:
                         resume_text = uploaded_file.read().decode("utf-8", errors="ignore")
                     
                     if resume_text:
                         st.success(f"Resume loaded — {len(resume_text)} characters")
-                        with st.expander("Preview resume text"):
-                            st.text(resume_text[:2000] + ("..." if len(resume_text) > 2000 else ""))
             else:
-                resume_text = st.text_area("Paste your resume here:", height=250, key="resume_paste", placeholder="Paste your full resume text...")
+                resume_text = st.text_area("Paste your resume here:", height=200, key="resume_paste", placeholder="Paste your full resume text...")
         
         with cl_c2:
             st.markdown("**🏢 Job offer**")
-            job_offer = st.text_area("Paste the job offer here:", height=300, key="job_offer_text", placeholder="Paste the full job description — title, requirements, company info...")
+            job_offer = st.text_area("Paste the job offer here:", height=200, key="job_offer_text", placeholder="Paste the full job description...")
+            jf1, jf2 = st.columns(2)
+            with jf1:
+                cl_company = st.text_input("Company name", key="cl_company", placeholder="e.g. Google, Airbus...")
+            with jf2:
+                cl_role = st.text_input("Role / Position", key="cl_role", placeholder="e.g. Data Scientist")
         
         st.markdown("")
-        lang_col, tone_col = st.columns(2)
-        with lang_col:
-            cl_language = st.selectbox("Language", ["English", "French", "Both (English + French)"], key="cl_lang")
-        with tone_col:
+        opt1, opt2, opt3 = st.columns(3)
+        with opt1:
+            cl_language = st.selectbox("Language", ["English", "French", "Both"], key="cl_lang")
+        with opt2:
             cl_tone = st.selectbox("Tone", ["Professional & confident", "Warm & enthusiastic", "Formal & corporate", "Creative & bold"], key="cl_tone")
+        with opt3:
+            cl_model = st.selectbox("Model", models_cl, index=models_cl.index(default_model_cl) if default_model_cl in models_cl else 0, key="cl_model")
+        
+        auto_track = st.checkbox("📌 Auto-add to Job Tracker when generated", value=True, key="cl_auto_track")
         
         if st.button("✨ Generate cover letter", use_container_width=True, type="primary", key="gen_cl"):
             if resume_text and job_offer:
-                languages = ["English", "French"] if cl_language == "Both (English + French)" else [cl_language]
+                languages = ["English", "French"] if cl_language == "Both" else [cl_language]
                 
                 for lang in languages:
-                    with st.spinner(f"Claude is writing your cover letter in {lang}..."):
+                    with st.spinner(f"✍️ Writing in {lang} with {cl_model}... (this may take 30-60 seconds)"):
                         tone_instruction = f"Use a {cl_tone.lower()} tone."
-                        letter = claude_generate_cover_letter(
+                        letter = ai_generate_cover_letter(
                             resume_text, 
                             job_offer + f"\n\n{tone_instruction}",
-                            lang
+                            lang,
+                            cl_model
                         )
-                        
                         if letter:
-                            st.session_state[f"cover_letter_{lang.lower()}"] = letter
+                            st.session_state[f"cl_edit_{lang.lower()}"] = letter
+                
+                # Auto-add to job tracker
+                if auto_track and (cl_company or cl_role):
+                    company_name = cl_company if cl_company else "Unknown Company"
+                    role_name = cl_role if cl_role else "Unknown Role"
+                    # Check if already tracked (avoid duplicates)
+                    existing = [j for j in data.get("jobs", []) if j.get("company", "").lower() == company_name.lower() and j.get("role", "").lower() == role_name.lower()]
+                    if not existing:
+                        data.setdefault("jobs", []).append({
+                            "company": company_name,
+                            "role": role_name,
+                            "status": "Applied",
+                            "url": "",
+                            "note": f"Cover letter generated ({cl_language})",
+                            "date": today_str,
+                            "has_cover_letter": True
+                        })
+                        save_data(data)
                 
                 st.rerun()
             else:
                 st.warning("Please provide both your resume and the job offer.")
         
-        # Display generated letters
+        # Display + Edit generated letters
         for lang in ["english", "french"]:
-            key = f"cover_letter_{lang}"
-            if key in st.session_state and st.session_state[key]:
+            edit_key = f"cl_edit_{lang}"
+            if edit_key in st.session_state and st.session_state[edit_key]:
                 st.markdown(f"""
-                <div class="flash-card" style="border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.03);">
-                    <div style="font-size:12px;font-weight:600;color:#818cf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;font-family:'JetBrains Mono',monospace;">📝 Cover letter — {lang.title()}</div>
-                    <div style="font-size:15px;color:#e2e8f0;line-height:1.8;white-space:pre-wrap;">{st.session_state[key]}</div>
-                </div>
+                <div style="font-size:14px;font-weight:600;color:#818cf8;text-transform:uppercase;letter-spacing:1px;margin:20px 0 8px;font-family:'JetBrains Mono',monospace;">📝 Cover letter — {lang.title()}</div>
                 """, unsafe_allow_html=True)
                 
-                # Copy button
-                cp1, cp2 = st.columns(2)
-                with cp1:
-                    if st.button(f"📋 Copy {lang.title()} version", use_container_width=True, key=f"copy_{lang}"):
-                        st.code(st.session_state[key], language=None)
-                        st.info("Select all text above and copy (Ctrl+C)")
-                with cp2:
-                    if st.button(f"💾 Save {lang.title()} version", use_container_width=True, key=f"save_cl_{lang}"):
+                # Editable text area
+                edited_letter = st.text_area(
+                    f"Edit your {lang} cover letter:",
+                    value=st.session_state[edit_key],
+                    height=350,
+                    key=f"editor_{lang}",
+                    label_visibility="collapsed"
+                )
+                st.session_state[edit_key] = edited_letter
+                
+                # Action buttons
+                btn1, btn2, btn3 = st.columns(3)
+                
+                with btn1:
+                    # PDF Download
+                    if st.button(f"📥 Download PDF", use_container_width=True, key=f"pdf_{lang}"):
+                        try:
+                            from reportlab.lib.pagesizes import A4
+                            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                            from reportlab.lib.units import cm
+                            import io as _io
+                            
+                            buffer = _io.BytesIO()
+                            doc = SimpleDocTemplate(
+                                buffer, pagesize=A4,
+                                leftMargin=2.5*cm, rightMargin=2.5*cm,
+                                topMargin=2.5*cm, bottomMargin=2.5*cm
+                            )
+                            
+                            styles = getSampleStyleSheet()
+                            body_style = ParagraphStyle(
+                                'CoverLetter',
+                                parent=styles['Normal'],
+                                fontSize=11,
+                                leading=16,
+                                spaceAfter=12,
+                                fontName='Helvetica'
+                            )
+                            date_style = ParagraphStyle(
+                                'DateStyle',
+                                parent=styles['Normal'],
+                                fontSize=10,
+                                leading=14,
+                                textColor='#666666',
+                                fontName='Helvetica'
+                            )
+                            
+                            story = []
+                            story.append(Paragraph(today.strftime("%B %d, %Y"), date_style))
+                            story.append(Spacer(1, 24))
+                            
+                            paragraphs = edited_letter.strip().split("\n\n")
+                            for para in paragraphs:
+                                clean = para.strip().replace("\n", " ").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                                if clean:
+                                    story.append(Paragraph(clean, body_style))
+                            
+                            doc.build(story)
+                            pdf_bytes = buffer.getvalue()
+                            
+                            st.download_button(
+                                label=f"⬇️ Save {lang.title()} PDF",
+                                data=pdf_bytes,
+                                file_name=f"cover_letter_{lang}_{today_str}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                                key=f"dl_{lang}"
+                            )
+                        except ImportError:
+                            st.error("Install reportlab: `pip install reportlab`")
+                        except Exception as e:
+                            st.error(f"PDF error: {e}")
+                
+                with btn2:
+                    if st.button(f"🔄 Regenerate", use_container_width=True, key=f"regen_{lang}"):
+                        if resume_text and job_offer:
+                            with st.spinner(f"Regenerating {lang}..."):
+                                tone_instruction = f"Use a {cl_tone.lower()} tone."
+                                new_letter = ai_generate_cover_letter(
+                                    resume_text,
+                                    job_offer + f"\n\n{tone_instruction}",
+                                    lang.title(),
+                                    cl_model
+                                )
+                                if new_letter:
+                                    st.session_state[edit_key] = new_letter
+                                    st.rerun()
+                
+                with btn3:
+                    if st.button(f"💾 Save to history", use_container_width=True, key=f"save_cl_{lang}"):
                         data.setdefault("cover_letters", []).append({
-                            "letter": st.session_state[key],
+                            "letter": edited_letter,
                             "language": lang,
                             "date": today_str,
                             "job_snippet": job_offer[:200] if job_offer else ""
                         })
                         save_data(data)
-                        st.success(f"{lang.title()} cover letter saved!")
+                        st.success(f"Saved!")
         
         # History
         saved_letters = data.get("cover_letters", [])
         if saved_letters:
             st.markdown("")
             with st.expander(f"📚 Saved cover letters ({len(saved_letters)})"):
-                for i, cl in enumerate(reversed(saved_letters[-10:])):
-                    st.markdown(f"**{cl.get('date', '')}** — {cl.get('language', '').title()} — {cl.get('job_snippet', '')[:80]}...")
+                for i, cl_item in enumerate(reversed(saved_letters[-10:])):
+                    st.markdown(f"**{cl_item.get('date', '')}** — {cl_item.get('language', '').title()} — {cl_item.get('job_snippet', '')[:80]}...")
                     with st.expander(f"View letter #{len(saved_letters) - i}"):
-                        st.text(cl.get("letter", ""))
+                        st.text(cl_item.get("letter", ""))
     
     else:
         st.markdown("""
         <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-            <span style="font-size:13px;color:#fbbf24;font-weight:600;">🔑 Claude API key required</span>
+            <span style="font-size:13px;color:#fbbf24;font-weight:600;">🔴 Ollama not running</span>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("""
-        To use the cover letter generator, add your Claude API key:
+        To use the cover letter generator, start Ollama:
         
-        **On Streamlit Cloud:**
-        1. Go to your app dashboard → **Settings** → **Secrets**
-        2. Add this:
-        ```
-        ANTHROPIC_API_KEY = "sk-ant-your-key-here"
-        ```
-        3. Save and reboot the app
-        
-        **Running locally:**
-        1. Create a file `.streamlit/secrets.toml` in your project folder
-        2. Add: `ANTHROPIC_API_KEY = "sk-ant-your-key-here"`
-        
-        Get your API key at [console.anthropic.com](https://console.anthropic.com)
+        1. Open a terminal and run: `ollama serve`
+        2. Make sure you have a model: `ollama pull qwen3:14b`
+        3. Restart this app
         """)
 
 # ═══════════════ TAB: MEALS ═══════════════
-with tab10:
-    st.markdown('<div class="sec-title">Daily meals</div>', unsafe_allow_html=True)
-    mcs = st.columns(4)
-    for i, m in enumerate(MEALS):
-        with mcs[i]:
-            st.markdown(f'<div class="meal-c"><div style="font-size:28px;margin-bottom:8px;">{m["icon"]}</div><div style="font-weight:700;color:#e2e8f0;font-size:15px;">{m["name"]}</div><div style="color:#818cf8;font-size:12px;font-weight:600;margin:6px 0;font-family:\'JetBrains Mono\',monospace;">{m["time"]} · {m["kcal"]} kcal</div><div style="color:#64748b;font-size:13px;line-height:1.5;">{m["desc"]}</div></div>', unsafe_allow_html=True)
-
-    st.markdown(""); st.markdown('<div class="sec-title">Daily targets</div>', unsafe_allow_html=True)
-    tcs = st.columns(4)
-    for col, (lb, vl, sb, co) in zip(tcs, [("Calories","1,500–1,850","kcal/day","#818cf8"),("Protein","130–150g","per day","#34d399"),("Water","2.5L","minimum","#60a5fa"),("Last meal","Before 23:00","window","#fbbf24")]):
-        with col:
-            st.markdown(f'<div class="s-card"><div class="s-label">{lb}</div><div style="font-size:18px;font-weight:700;color:{co};margin:6px 0;font-family:\'JetBrains Mono\',monospace;">{vl}</div><div class="s-sub">{sb}</div></div>', unsafe_allow_html=True)
+with tab9:
+    st.markdown('<div class="sec-title">Nutrition planner</div>', unsafe_allow_html=True)
+    
+    # ── Adaptive calorie calculator ──
+    st.markdown("**⚙️ Your stats** — adjust to recalculate your daily targets")
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    with mc1:
+        user_weight = st.number_input("Current weight (kg)", min_value=50.0, max_value=150.0, value=float(lw if lw else START_WEIGHT), step=0.5, key="meal_weight")
+    with mc2:
+        user_height = st.number_input("Height (cm)", min_value=140, max_value=210, value=170, step=1, key="meal_height")
+    with mc3:
+        user_age = st.number_input("Age", min_value=16, max_value=65, value=25, step=1, key="meal_age")
+    with mc4:
+        activity = st.selectbox("Activity level", ["Sedentary (office)", "Light (1-2x/week)", "Moderate (3-5x/week)", "Active (6-7x/week)"], index=2, key="meal_activity")
+    
+    # Mifflin-St Jeor BMR
+    bmr = 10 * user_weight + 6.25 * user_height - 5 * user_age + 5
+    activity_mult = {"Sedentary (office)": 1.2, "Light (1-2x/week)": 1.375, "Moderate (3-5x/week)": 1.55, "Active (6-7x/week)": 1.725}
+    tdee = round(bmr * activity_mult.get(activity, 1.55))
+    deficit_cal = round(tdee - 500)  # ~0.5kg/week loss
+    aggressive_cal = round(tdee - 750)  # ~0.75kg/week loss
+    
+    protein_g = round(user_weight * 1.8)  # 1.8g per kg for muscle preservation during cut
+    fat_g = round(deficit_cal * 0.25 / 9)  # 25% from fat
+    carb_g = round((deficit_cal - protein_g * 4 - fat_g * 9) / 4)
+    
+    weeks_to_goal = round((user_weight - GOAL_WEIGHT) / 0.5) if user_weight > GOAL_WEIGHT else 0
+    
+    st.markdown("")
+    tc1, tc2, tc3, tc4 = st.columns(4)
+    with tc1:
+        st.markdown(f'<div class="s-card"><div class="s-label">TDEE</div><div style="font-size:22px;font-weight:700;color:#818cf8;font-family:\'JetBrains Mono\',monospace;">{tdee}</div><div class="s-sub">kcal/day maintenance</div></div>', unsafe_allow_html=True)
+    with tc2:
+        st.markdown(f'<div class="s-card"><div class="s-label">Target calories</div><div style="font-size:22px;font-weight:700;color:#34d399;font-family:\'JetBrains Mono\',monospace;">{deficit_cal}</div><div class="s-sub">kcal/day (–500 deficit)</div></div>', unsafe_allow_html=True)
+    with tc3:
+        st.markdown(f'<div class="s-card"><div class="s-label">Macros</div><div style="font-size:14px;font-weight:600;color:#fbbf24;margin:4px 0;">P: {protein_g}g · F: {fat_g}g · C: {carb_g}g</div><div class="s-sub">protein / fat / carbs</div></div>', unsafe_allow_html=True)
+    with tc4:
+        st.markdown(f'<div class="s-card"><div class="s-label">Goal: {GOAL_WEIGHT} kg</div><div style="font-size:22px;font-weight:700;color:#f472b6;font-family:\'JetBrains Mono\',monospace;">{weeks_to_goal}w</div><div class="s-sub">weeks at 0.5 kg/week</div></div>', unsafe_allow_html=True)
+    
+    # ── Meal plan with concrete options ──
+    st.markdown("")
+    st.markdown('<div class="sec-title">Meal plan — pick your meals</div>', unsafe_allow_html=True)
+    
+    # Calculate per-meal calories
+    bk_cal = round(deficit_cal * 0.25)  # 25% breakfast
+    lu_cal = round(deficit_cal * 0.35)  # 35% lunch
+    di_cal = round(deficit_cal * 0.25)  # 25% dinner
+    sn_cal = round(deficit_cal * 0.15)  # 15% snack
+    
+    MEAL_OPTIONS = {
+        "🍳 Breakfast": {
+            "time": "9:30 AM",
+            "target_cal": bk_cal,
+            "options": [
+                {"name": "Classic eggs", "desc": "2 eggs scrambled + 1 slice whole wheat toast + coffee", "cal": 350, "protein": 22},
+                {"name": "Omelette", "desc": "3-egg omelette with cheese, tomato, spinach + coffee", "cal": 400, "protein": 28},
+                {"name": "Overnight oats", "desc": "Oats + Greek yogurt + banana + honey + chia seeds", "cal": 380, "protein": 18},
+                {"name": "Shakshuka", "desc": "2 eggs in tomato sauce + bread + feta cheese", "cal": 420, "protein": 24},
+                {"name": "Protein smoothie", "desc": "Whey protein + banana + oats + milk + peanut butter", "cal": 450, "protein": 35},
+                {"name": "French breakfast", "desc": "Pain de mie + cheese + butter + jam + coffee + orange juice", "cal": 380, "protein": 12},
+            ]
+        },
+        "🍲 Lunch": {
+            "time": "1:00 PM",
+            "target_cal": lu_cal,
+            "options": [
+                {"name": "Grilled chicken + rice", "desc": "150g chicken breast + 100g rice + mixed salad + olive oil", "cal": 550, "protein": 42},
+                {"name": "Tuna salad bowl", "desc": "Canned tuna + quinoa + avocado + vegetables + lemon dressing", "cal": 480, "protein": 38},
+                {"name": "Chicken couscous", "desc": "150g chicken + couscous + chickpeas + vegetables + harissa", "cal": 580, "protein": 40},
+                {"name": "Salmon + potatoes", "desc": "130g salmon fillet + roasted potatoes + steamed broccoli", "cal": 520, "protein": 35},
+                {"name": "Turkey wrap", "desc": "Whole wheat wrap + turkey slices + hummus + lettuce + tomato", "cal": 450, "protein": 32},
+                {"name": "Beef stir-fry", "desc": "120g lean beef + rice noodles + vegetables + soy sauce", "cal": 520, "protein": 36},
+                {"name": "Lentil soup + bread", "desc": "Large bowl lentil soup + whole wheat bread + side salad", "cal": 480, "protein": 28},
+                {"name": "Grilled fish + veggies", "desc": "150g white fish + roasted vegetables + olive oil + lemon", "cal": 400, "protein": 38},
+            ]
+        },
+        "🥗 Dinner": {
+            "time": "7:00 PM",
+            "target_cal": di_cal,
+            "options": [
+                {"name": "Egg + salad", "desc": "2 boiled eggs + large mixed salad + feta + olive oil dressing", "cal": 350, "protein": 22},
+                {"name": "Chicken soup", "desc": "Homemade chicken soup with vegetables + small bread roll", "cal": 320, "protein": 25},
+                {"name": "Grilled chicken salad", "desc": "100g chicken + arugula + cherry tomatoes + parmesan + balsamic", "cal": 380, "protein": 32},
+                {"name": "Tuna pasta (light)", "desc": "80g whole wheat pasta + canned tuna + tomato sauce + olives", "cal": 420, "protein": 30},
+                {"name": "Vegetable stir-fry", "desc": "Tofu or chicken + broccoli + bell peppers + soy sauce + small rice", "cal": 380, "protein": 26},
+                {"name": "Omelette + bread", "desc": "3-egg omelette with mushrooms + herbs + 1 slice bread", "cal": 360, "protein": 24},
+            ]
+        },
+        "🍎 Snack": {
+            "time": "10:00 PM",
+            "target_cal": sn_cal,
+            "options": [
+                {"name": "Greek yogurt + berries", "desc": "150g Greek yogurt + mixed berries + drizzle of honey", "cal": 180, "protein": 15},
+                {"name": "Fruit + nuts", "desc": "1 apple + 20g almonds", "cal": 200, "protein": 6},
+                {"name": "Cottage cheese", "desc": "150g cottage cheese + cinnamon + few walnuts", "cal": 190, "protein": 20},
+                {"name": "Protein bar", "desc": "1 protein bar (check label ~200 cal, 20g protein)", "cal": 200, "protein": 20},
+                {"name": "Banana + PB", "desc": "1 banana + 1 tbsp peanut butter", "cal": 220, "protein": 7},
+                {"name": "Dark chocolate + fruit", "desc": "2 squares dark chocolate (70%+) + 1 orange", "cal": 170, "protein": 3},
+            ]
+        }
+    }
+    
+    total_cal = 0
+    total_protein = 0
+    selected_meals = {}
+    
+    for meal_name, meal_data in MEAL_OPTIONS.items():
+        st.markdown(f"""
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">
+            <span style="font-size:15px;font-weight:600;color:#e2e8f0;">{meal_name} — {meal_data['time']}</span>
+            <span style="font-size:12px;color:#818cf8;font-family:'JetBrains Mono',monospace;">Target: ~{meal_data['target_cal']} kcal</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        option_names = [f"{o['name']} ({o['cal']} kcal · {o['protein']}g protein)" for o in meal_data["options"]]
+        selected = st.selectbox(
+            f"Choose {meal_name}",
+            option_names,
+            key=f"meal_select_{meal_name}",
+            label_visibility="collapsed"
+        )
+        
+        # Find selected option
+        sel_idx = option_names.index(selected)
+        sel_option = meal_data["options"][sel_idx]
+        selected_meals[meal_name] = sel_option
+        total_cal += sel_option["cal"]
+        total_protein += sel_option["protein"]
+        
+        st.markdown(f"""
+        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;margin-bottom:4px;">
+            <span style="font-size:13px;color:#94a3b8;">{sel_option['desc']}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ── Daily summary ──
+    st.markdown("")
+    st.markdown('<div class="sec-title">Daily summary</div>', unsafe_allow_html=True)
+    
+    cal_diff = total_cal - deficit_cal
+    cal_color = "#34d399" if abs(cal_diff) <= 100 else ("#fbbf24" if abs(cal_diff) <= 200 else "#ef4444")
+    cal_status = "On target" if abs(cal_diff) <= 100 else ("Slightly over" if cal_diff > 100 else "Under target")
+    
+    ds1, ds2, ds3, ds4 = st.columns(4)
+    with ds1:
+        st.markdown(f'<div class="s-card"><div class="s-label">Total calories</div><div style="font-size:22px;font-weight:700;color:{cal_color};font-family:\'JetBrains Mono\',monospace;">{total_cal}</div><div class="s-sub">{cal_status} ({cal_diff:+d})</div></div>', unsafe_allow_html=True)
+    with ds2:
+        prot_color = "#34d399" if total_protein >= protein_g * 0.8 else "#fbbf24"
+        st.markdown(f'<div class="s-card"><div class="s-label">Total protein</div><div style="font-size:22px;font-weight:700;color:{prot_color};font-family:\'JetBrains Mono\',monospace;">{total_protein}g</div><div class="s-sub">Target: {protein_g}g</div></div>', unsafe_allow_html=True)
+    with ds3:
+        remaining = deficit_cal - total_cal
+        rem_color = "#34d399" if remaining >= 0 else "#ef4444"
+        st.markdown(f'<div class="s-card"><div class="s-label">Remaining</div><div style="font-size:22px;font-weight:700;color:{rem_color};font-family:\'JetBrains Mono\',monospace;">{max(0, remaining)}</div><div class="s-sub">kcal left today</div></div>', unsafe_allow_html=True)
+    with ds4:
+        st.markdown(f'<div class="s-card"><div class="s-label">Water</div><div style="font-size:22px;font-weight:700;color:#60a5fa;font-family:\'JetBrains Mono\',monospace;">2.5L</div><div class="s-sub">minimum daily</div></div>', unsafe_allow_html=True)
+    
+    # ── Avoid list ──
+    st.markdown("")
+    st.markdown("""
+    <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.12);border-radius:14px;padding:16px 20px;">
+        <div style="font-size:13px;font-weight:600;color:#fca5a5;margin-bottom:8px;">❌ Avoid</div>
+        <div style="font-size:13px;color:#94a3b8;line-height:1.8;">
+            Sugary drinks (soda, juice) · Excessive bread · Late-night snacking after 11 PM · Fried food · Processed snacks · Alcohol (empty calories)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ── Quick tips ──
+    st.markdown("""
+    <div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.12);border-radius:14px;padding:16px 20px;margin-top:12px;">
+        <div style="font-size:13px;font-weight:600;color:#6ee7b7;margin-bottom:8px;">💡 Tips for your cut</div>
+        <div style="font-size:13px;color:#94a3b8;line-height:1.8;">
+            Eat protein first at every meal · Drink water before eating · Eat slowly (20+ min per meal) · Prep meals on Sunday · High volume low calorie: salads, soups, vegetables · Sleep 7h+ (hunger hormones go crazy when sleep-deprived)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # FOOTER
 st.markdown('<div class="prime-footer">Prime is built in silence. 🚀 Discipline = Freedom.<small>Small daily progress > random bursts of effort.</small></div>', unsafe_allow_html=True)
