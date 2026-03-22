@@ -353,60 +353,77 @@ elif step == 3:
 
         # ── Meal cards ────────────────────────────────────
         for meal in meals:
-            meal_type = meal.get("type", "Meal")
-            icon      = MEAL_ICONS.get(meal_type, "🍽️")
-            name      = meal.get("name", "")
-            desc      = meal.get("description", "")
-            cal       = meal.get("calories", "—")
-            prot      = meal.get("protein", "—")
-            carbs_val = meal.get("carbs", "—")
-            fat_val   = meal.get("fat", "—")
-            prep      = meal.get("prep_time", 0)
-            cook      = meal.get("cook_time", 0)
-            ingrs     = meal.get("ingredients", [])
-            steps     = meal.get("instructions", [])
+            meal_type  = meal.get("type", "Meal")
+            icon       = MEAL_ICONS.get(meal_type, "🍽️")
+            name       = meal.get("name", "")
+            desc       = meal.get("description", "")
+            cal        = meal.get("calories", "—")
+            prot       = meal.get("protein", "—")
+            carbs_val  = meal.get("carbs", "—")
+            fat_val    = meal.get("fat", "—")
+            prep       = meal.get("prep_time", 0)
+            cook       = meal.get("cook_time", 0)
+            ingrs      = meal.get("ingredients", [])
+            steps      = meal.get("instructions", [])
             total_time = prep + cook if isinstance(prep, int) and isinstance(cook, int) else "—"
 
-            st.markdown(f"""
-            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
-            border-radius:16px;padding:20px 24px;margin-bottom:16px;">
-              <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;
-              letter-spacing:1.5px;font-family:'JetBrains Mono',monospace;margin-bottom:8px;">{icon} {meal_type}</div>
-              <div style="font-size:19px;font-weight:700;color:#f1f5f9;margin-bottom:6px;">{name}</div>
-              <div style="font-size:13px;color:#64748b;margin-bottom:14px;">{desc}</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <span style="font-size:12px;background:rgba(129,140,248,0.1);color:#818cf8;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">🔥 {cal} kcal</span>
-                <span style="font-size:12px;background:rgba(251,191,36,0.1);color:#fbbf24;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">💪 {prot}g protein</span>
-                <span style="font-size:12px;background:rgba(96,165,250,0.1);color:#60a5fa;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">🌾 {carbs_val}g carbs</span>
-                <span style="font-size:12px;background:rgba(244,114,182,0.1);color:#f472b6;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">🥑 {fat_val}g fat</span>
-                <span style="font-size:12px;background:rgba(255,255,255,0.05);color:#64748b;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">⏱ {total_time} min</span>
-              </div>
-            </div>""", unsafe_allow_html=True)
+            with st.container():
+                # meal type badge
+                st.markdown(
+                    f'<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;'
+                    f'letter-spacing:1.5px;font-family:\'JetBrains Mono\',monospace;'
+                    f'margin-top:24px;margin-bottom:4px;">{icon} {meal_type}</div>',
+                    unsafe_allow_html=True,
+                )
+                # title
+                st.markdown(
+                    f'<div style="font-size:20px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">{name}</div>',
+                    unsafe_allow_html=True,
+                )
+                # description
+                st.markdown(
+                    f'<div style="font-size:13px;color:#64748b;margin-bottom:12px;">{desc}</div>',
+                    unsafe_allow_html=True,
+                )
+                # macro badges
+                st.markdown(f"""
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                  <span style="font-size:12px;background:rgba(129,140,248,0.1);color:#818cf8;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">🔥 {cal} kcal</span>
+                  <span style="font-size:12px;background:rgba(251,191,36,0.1);color:#fbbf24;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">💪 {prot}g protein</span>
+                  <span style="font-size:12px;background:rgba(96,165,250,0.1);color:#60a5fa;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">🌾 {carbs_val}g carbs</span>
+                  <span style="font-size:12px;background:rgba(244,114,182,0.1);color:#f472b6;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">🥑 {fat_val}g fat</span>
+                  <span style="font-size:12px;background:rgba(255,255,255,0.05);color:#64748b;padding:3px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;">⏱ {total_time} min</span>
+                </div>
+                """, unsafe_allow_html=True)
 
-            with st.expander(f"🛒 Ingredients ({len(ingrs)})"):
-                ing_cols = st.columns(2)
-                for j, ing in enumerate(ingrs):
-                    amt   = ing.get("amount", "")
-                    unit  = ing.get("unit", "")
-                    iname = ing.get("name", "")
-                    with ing_cols[j % 2]:
+                # ingredients expander
+                with st.expander(f"🛒 Ingredients ({len(ingrs)})"):
+                    ing_cols = st.columns(2)
+                    for j, ing in enumerate(ingrs):
+                        amt   = ing.get("amount", "")
+                        unit  = ing.get("unit", "")
+                        iname = ing.get("name", "")
+                        with ing_cols[j % 2]:
+                            st.markdown(
+                                f'<div style="font-size:13px;color:#94a3b8;padding:4px 0;'
+                                f'border-bottom:1px solid rgba(255,255,255,0.04);">'
+                                f'<span style="color:#e2e8f0;font-weight:500;">{amt}{unit}</span> {iname}</div>',
+                                unsafe_allow_html=True,
+                            )
+
+                # instructions expander
+                with st.expander(f"👨‍🍳 Instructions ({len(steps)} steps)"):
+                    for j, step_txt in enumerate(steps):
                         st.markdown(
-                            f'<div style="font-size:13px;color:#94a3b8;padding:4px 0;'
+                            f'<div style="display:flex;gap:12px;padding:8px 0;'
                             f'border-bottom:1px solid rgba(255,255,255,0.04);">'
-                            f'<span style="color:#e2e8f0;font-weight:500;">{amt}{unit}</span> {iname}</div>',
+                            f'<span style="font-size:12px;font-weight:700;color:#818cf8;min-width:24px;'
+                            f'font-family:\'JetBrains Mono\',monospace;">{j+1}.</span>'
+                            f'<span style="font-size:13px;color:#94a3b8;line-height:1.6;">{step_txt}</span></div>',
                             unsafe_allow_html=True,
                         )
 
-            with st.expander(f"👨‍🍳 Instructions ({len(steps)} steps)"):
-                for j, step_txt in enumerate(steps):
-                    st.markdown(
-                        f'<div style="display:flex;gap:12px;padding:8px 0;'
-                        f'border-bottom:1px solid rgba(255,255,255,0.04);">'
-                        f'<span style="font-size:12px;font-weight:700;color:#818cf8;min-width:24px;'
-                        f'font-family:\'JetBrains Mono\',monospace;">{j+1}.</span>'
-                        f'<span style="font-size:13px;color:#94a3b8;line-height:1.6;">{step_txt}</span></div>',
-                        unsafe_allow_html=True,
-                    )
+                st.markdown('<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">', unsafe_allow_html=True)
 
         # ── Tips ──────────────────────────────────────────
         if tips:
