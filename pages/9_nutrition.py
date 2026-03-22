@@ -383,30 +383,30 @@ elif step == 3:
               </div>
             </div>""", unsafe_allow_html=True)
 
-            col_ing, col_inst = st.columns(2)
-            with col_ing:
-                with st.expander(f"🛒 Ingredients ({len(ingrs)})"):
-                    for ing in ingrs:
-                        amt   = ing.get("amount", "")
-                        unit  = ing.get("unit", "")
-                        iname = ing.get("name", "")
+            with st.expander(f"🛒 Ingredients ({len(ingrs)})"):
+                ing_cols = st.columns(2)
+                for j, ing in enumerate(ingrs):
+                    amt   = ing.get("amount", "")
+                    unit  = ing.get("unit", "")
+                    iname = ing.get("name", "")
+                    with ing_cols[j % 2]:
                         st.markdown(
                             f'<div style="font-size:13px;color:#94a3b8;padding:4px 0;'
                             f'border-bottom:1px solid rgba(255,255,255,0.04);">'
                             f'<span style="color:#e2e8f0;font-weight:500;">{amt}{unit}</span> {iname}</div>',
                             unsafe_allow_html=True,
                         )
-            with col_inst:
-                with st.expander(f"👨‍🍳 Instructions ({len(steps)} steps)"):
-                    for j, step_txt in enumerate(steps):
-                        st.markdown(
-                            f'<div style="display:flex;gap:12px;padding:6px 0;'
-                            f'border-bottom:1px solid rgba(255,255,255,0.04);">'
-                            f'<span style="font-size:12px;font-weight:700;color:#818cf8;min-width:20px;'
-                            f'font-family:\'JetBrains Mono\',monospace;">{j+1}.</span>'
-                            f'<span style="font-size:13px;color:#94a3b8;line-height:1.5;">{step_txt}</span></div>',
-                            unsafe_allow_html=True,
-                        )
+
+            with st.expander(f"👨‍🍳 Instructions ({len(steps)} steps)"):
+                for j, step_txt in enumerate(steps):
+                    st.markdown(
+                        f'<div style="display:flex;gap:12px;padding:8px 0;'
+                        f'border-bottom:1px solid rgba(255,255,255,0.04);">'
+                        f'<span style="font-size:12px;font-weight:700;color:#818cf8;min-width:24px;'
+                        f'font-family:\'JetBrains Mono\',monospace;">{j+1}.</span>'
+                        f'<span style="font-size:13px;color:#94a3b8;line-height:1.6;">{step_txt}</span></div>',
+                        unsafe_allow_html=True,
+                    )
 
         # ── Tips ──────────────────────────────────────────
         if tips:
