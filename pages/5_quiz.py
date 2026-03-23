@@ -1,8 +1,14 @@
 import streamlit as st
-import json, random, time, datetime
+import json, random, time, datetime, re
 from utils import (load_data, save_data, get_week_info,
                    ollama_available, ollama_models, get_default_model, ollama_generate,
                    QUIZ_QUESTIONS)
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 data     = load_data()
 wi       = get_week_info()
@@ -10,29 +16,82 @@ week_num = wi["week_num"]
 today_str= wi["today_str"]
 
 st.markdown('<p class="page-title">Interview quiz</p>', unsafe_allow_html=True)
-st.markdown('<p class="page-sub">AI-generated questions via Ollama, or static bank as fallback.</p>', unsafe_allow_html=True)
+st.markdown('<p class="page-sub">AI-generated questions via Ollama or Claude API, with static bank as fallback.</p>', unsafe_allow_html=True)
 
 ollama_ok = ollama_available()
 
-# ── Ollama mode ───────────────────────────────────────────
-if ollama_ok:
-    models        = ollama_models()
-    default_model = get_default_model()
+# ── Claude API fallback ───────────────────────────────────
+try:
+    CLAUDE_KEY = st.secrets["ANTHROPIC_API_KEY"]
+except Exception:
+    CLAUDE_KEY = ""
 
-    st.markdown(f"""
-    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);
-    border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-      <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected — {default_model}</span>
-    </div>
-    """, unsafe_allow_html=True)
+def claude_generate(prompt, max_tokens=800):
+    """Generate text via Claude API as fallback."""
+    if not CLAUDE_KEY or not HAS_REQUESTS:
+        return ""
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": CLAUDE_KEY,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=60,
+        )
+        if r.status_code == 200:
+            return r.json()["content"][0]["text"]
+        else:
+            return f"API error {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        return f"Error: {e}"
+
+# ── Determine AI backend ─────────────────────────────────
+ai_ok = ollama_ok or bool(CLAUDE_KEY)
+
+def generate_text(prompt, model=None, max_tokens=800):
+    if ollama_ok:
+        return ollama_generate(prompt, model, max_tokens)
+    elif CLAUDE_KEY:
+        return claude_generate(prompt, max_tokens)
+    return ""
+
+# ── AI mode (Ollama or Claude) ───────────────────────────
+if ai_ok:
+    if ollama_ok:
+        models        = ollama_models()
+        default_model = get_default_model()
+        st.markdown(f"""
+        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);
+        border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+          <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected — {default_model}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);
+        border-radius:10px;padding:12px 18px;margin-bottom:16px;">
+          <span style="font-size:13px;color:#a5b4fc;font-weight:600;">🟣 Claude API — Ollama offline, using Claude as fallback</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     qc1, qc2 = st.columns([2, 1])
     with qc1:
         quiz_cat = st.selectbox("Category", ["ML Theory", "System Design", "Behavioral", "SQL & Python"], key="qcat")
     with qc2:
-        sel_model = st.selectbox("Model", models,
-                                 index=models.index(default_model) if default_model in models else 0,
-                                 key="qmodel")
+        if ollama_ok:
+            sel_model = st.selectbox("Model", models,
+                                     index=models.index(default_model) if default_model in models else 0,
+                                     key="qmodel")
+        else:
+            st.selectbox("Model", ["Claude Sonnet"], disabled=True, key="qmodel_label")
+            sel_model = None
 
     if st.button("🎲 Generate question", use_container_width=True, key="gen_q"):
         topics = {
@@ -45,8 +104,9 @@ if ollama_ok:
 The candidate is in week {week_num} of an 8-week study program.
 Return ONLY a JSON object — no markdown, no extra text:
 {{"question":"...","model_answer":"...","difficulty":"medium","category":"{quiz_cat}"}}"""
-        with st.spinner(f"Generating with {sel_model}…"):
-            resp = ollama_generate(prompt, sel_model, 800)
+        backend_label = sel_model if ollama_ok else "Claude"
+        with st.spinner(f"Generating with {backend_label}…"):
+            resp = generate_text(prompt, sel_model, 800)
         if resp:
             try:
                 s = resp.find("{"); e = resp.rfind("}") + 1
@@ -92,7 +152,7 @@ MODEL ANSWER: {st.session_state.get("cq_model_answer","")}
 
 Score out of 10, what they got right, what they missed, one tip. 4–6 sentences. Start with the score."""
                 with st.spinner("Reviewing…"):
-                    st.session_state.cq_review = ollama_generate(review_prompt, sel_model, 500)
+                    st.session_state.cq_review = generate_text(review_prompt, sel_model, 500)
                 st.rerun()
 
         if st.session_state.get("cq_show"):
@@ -110,23 +170,24 @@ Score out of 10, what they got right, what they missed, one tip. 4–6 sentences
             </div>""", unsafe_allow_html=True)
 
         if user_ans and st.button("💾 Save session", use_container_width=True, key="cq_save"):
-            data.setdefault("quiz_history", {})[f"ollama_{today_str}_{int(time.time())}"] = {
+            source = "ollama" if ollama_ok else "claude"
+            data.setdefault("quiz_history", {})[f"{source}_{today_str}_{int(time.time())}"] = {
                 "question": st.session_state.cq_question, "user_answer": user_ans,
                 "model_answer": st.session_state.get("cq_model_answer", ""),
                 "review": st.session_state.get("cq_review", ""),
-                "date": today_str, "source": "ollama"
+                "date": today_str, "source": source
             }
             save_data(data); st.success("Session saved! ✅")
     else:
         st.info("Click **Generate question** to get a fresh AI interview question.")
 
-# ── Static fallback ───────────────────────────────────────
+# ── Static fallback (no AI at all) ───────────────────────
 else:
     st.markdown("""
     <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);
     border-radius:10px;padding:12px 18px;margin-bottom:16px;">
-      <span style="font-size:13px;color:#fbbf24;font-weight:600;">⚡ Ollama offline — using static question bank</span>
-      <div style="font-size:12px;color:#92400e;margin-top:4px;">Run <code>ollama serve</code> for AI-generated questions.</div>
+      <span style="font-size:13px;color:#fbbf24;font-weight:600;">⚡ No AI backend — using static question bank</span>
+      <div style="font-size:12px;color:#92400e;margin-top:4px;">Run <code>ollama serve</code> or add ANTHROPIC_API_KEY for AI-generated questions.</div>
     </div>
     """, unsafe_allow_html=True)
 

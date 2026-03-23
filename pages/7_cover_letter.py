@@ -1,7 +1,15 @@
 import streamlit as st
 import datetime
+import json
+import re
 from utils import (load_data, save_data, get_week_info,
                    ollama_available, ollama_models, get_default_model, ollama_generate)
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 data      = load_data()
 wi        = get_week_info()
@@ -13,23 +21,70 @@ st.markdown('<p class="page-sub">Upload your resume + paste a job offer — get 
 
 ollama_ok = ollama_available()
 
-if not ollama_ok:
+# ── Claude API fallback ───────────────────────────────────
+try:
+    CLAUDE_KEY = st.secrets["ANTHROPIC_API_KEY"]
+except Exception:
+    CLAUDE_KEY = ""
+
+def claude_generate(prompt, max_tokens=2000):
+    """Generate text via Claude API as fallback when Ollama is offline."""
+    if not CLAUDE_KEY or not HAS_REQUESTS:
+        return ""
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": CLAUDE_KEY,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=60,
+        )
+        if r.status_code == 200:
+            return r.json()["content"][0]["text"]
+        else:
+            return f"API error {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        return f"Error: {e}"
+
+# ── AI backend selection ──────────────────────────────────
+if ollama_ok:
+    models        = ollama_models()
+    default_model = get_default_model()
+    ai_backend    = "ollama"
+    st.markdown(f"""
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);
+    border-radius:10px;padding:12px 18px;margin-bottom:20px;">
+      <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected — {default_model}</span>
+    </div>""", unsafe_allow_html=True)
+elif CLAUDE_KEY:
+    ai_backend = "claude"
+    st.markdown("""
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);
+    border-radius:10px;padding:12px 18px;margin-bottom:20px;">
+      <span style="font-size:13px;color:#a5b4fc;font-weight:600;">🟣 Claude API — Ollama offline, using Claude as fallback</span>
+    </div>""", unsafe_allow_html=True)
+else:
     st.markdown("""
     <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);
     border-radius:10px;padding:14px 18px;margin-bottom:16px;">
-      <span style="font-size:13px;color:#fca5a5;font-weight:600;">🔴 Ollama not running</span>
-      <div style="font-size:12px;color:#7f1d1d;margin-top:4px;">Run <code>ollama serve</code> and reload.</div>
+      <span style="font-size:13px;color:#fca5a5;font-weight:600;">🔴 No AI backend available</span>
+      <div style="font-size:12px;color:#7f1d1d;margin-top:4px;">Run <code>ollama serve</code> or add ANTHROPIC_API_KEY to secrets.</div>
     </div>""", unsafe_allow_html=True)
     st.stop()
 
-models        = ollama_models()
-default_model = get_default_model()
-
-st.markdown(f"""
-<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);
-border-radius:10px;padding:12px 18px;margin-bottom:20px;">
-  <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected — {default_model}</span>
-</div>""", unsafe_allow_html=True)
+def generate_text(prompt, model=None, max_tokens=2000):
+    """Route to Ollama or Claude depending on what's available."""
+    if ai_backend == "ollama":
+        return ollama_generate(prompt, model, max_tokens)
+    else:
+        return claude_generate(prompt, max_tokens)
 
 # ── Input columns ─────────────────────────────────────────
 cl1, cl2 = st.columns(2)
@@ -68,10 +123,14 @@ with cl2:
     with jf2: cl_role    = st.text_input("Role", key="cl_role", placeholder="e.g. Data Scientist")
 
 # ── Options ───────────────────────────────────────────────
-opt1, opt2, opt3 = st.columns(3)
-with opt1: cl_lang  = st.selectbox("Language", ["English","French","Both"], key="cl_lang")
-with opt2: cl_tone  = st.selectbox("Tone", ["Professional & confident","Warm & enthusiastic","Formal & corporate","Creative & bold"], key="cl_tone")
-with opt3: cl_model = st.selectbox("Model", models, index=models.index(default_model) if default_model in models else 0, key="cl_model")
+opt1, opt2 = st.columns(2)
+with opt1: cl_lang = st.selectbox("Language", ["English","French","Both"], key="cl_lang")
+with opt2: cl_tone = st.selectbox("Tone", ["Professional & confident","Warm & enthusiastic","Formal & corporate","Creative & bold"], key="cl_tone")
+
+if ai_backend == "ollama":
+    cl_model = st.selectbox("Model", models, index=models.index(default_model) if default_model in models else 0, key="cl_model")
+else:
+    cl_model = None
 
 auto_track = st.checkbox("📌 Auto-add to Job Tracker", value=True, key="cl_autotrack")
 
@@ -90,8 +149,9 @@ Tone: {cl_tone}.
 
 Guidelines: match skills to job requirements, highlight relevant projects, 3–4 paragraphs (~350 words),
 strong opening hook, confident closing. Be specific — no generic sentences. Write in {lang}."""
-            with st.spinner(f"Writing in {lang} with {cl_model}…"):
-                letter = ollama_generate(prompt, cl_model, 2000)
+            backend_label = cl_model if ai_backend == "ollama" else "Claude"
+            with st.spinner(f"Writing in {lang} with {backend_label}…"):
+                letter = generate_text(prompt, cl_model, 2000)
             if letter:
                 st.session_state[f"cl_edit_{lang.lower()}"] = letter
 
@@ -158,7 +218,7 @@ for lang in ["english", "french"]:
                 if resume_text and job_offer:
                     prompt = f"Write a cover letter in {lang.title()} (tone: {cl_tone}) matching this resume to this job.\n\nRESUME:\n{resume_text}\n\nJOB:\n{job_offer}"
                     with st.spinner("Regenerating…"):
-                        new_letter = ollama_generate(prompt, cl_model, 2000)
+                        new_letter = generate_text(prompt, cl_model, 2000)
                     if new_letter:
                         st.session_state[key] = new_letter; st.rerun()
         with btn3:

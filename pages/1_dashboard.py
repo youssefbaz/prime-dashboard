@@ -73,13 +73,7 @@ st.markdown(f'<p class="page-sub">{tasks["emoji"]} {tasks["vibe"]} &nbsp;·&nbsp
 
 # ── Daily quote ───────────────────────────────────────────
 quote = get_daily_quote(today)
-st.markdown(f"""
-<div style="background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(236,72,153,0.04));
-border:1px solid rgba(99,102,241,0.12);border-radius:14px;padding:18px 24px;margin-bottom:20px;">
-  <div style="font-size:15px;color:#cbd5e1;font-style:italic;line-height:1.6;">"{quote['text']}"</div>
-  <div style="font-size:12px;color:#818cf8;margin-top:6px;font-family:'JetBrains Mono',monospace;">— {quote['author']}</div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(f"""<div style="background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(236,72,153,0.04));border:1px solid rgba(99,102,241,0.12);border-radius:14px;padding:18px 24px;margin-bottom:20px;"><div style="font-size:15px;color:#cbd5e1;font-style:italic;line-height:1.6;">"{quote['text']}"</div><div style="font-size:12px;color:#818cf8;margin-top:6px;font-family:'JetBrains Mono',monospace;">— {quote['author']}</div></div>""", unsafe_allow_html=True)
 
 # ── Missed days alert ─────────────────────────────────────
 def get_missed():
@@ -95,13 +89,7 @@ def get_missed():
 
 missed = get_missed()
 if missed:
-    st.markdown(f"""
-    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);
-    border-radius:14px;padding:16px 22px;margin-bottom:20px;">
-      <div style="font-size:15px;font-weight:700;color:#fca5a5;">⚠️ {len(missed)} day{"s" if len(missed)>1 else ""} without check-in</div>
-      <div style="font-size:13px;color:#f87171;margin-top:4px;">Complete your checklist to clear these.</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:14px;padding:16px 22px;margin-bottom:20px;"><div style="font-size:15px;font-weight:700;color:#fca5a5;">⚠️ {len(missed)} day{"s" if len(missed)>1 else ""} without check-in</div><div style="font-size:13px;color:#f87171;margin-top:4px;">Complete your checklist to clear these.</div></div>""", unsafe_allow_html=True)
     with st.expander(f"Review {len(missed)} missed day(s)"):
         cols = st.columns(min(4, len(missed)))
         for i, m in enumerate(missed[:12]):
@@ -130,13 +118,7 @@ tc = data.get("daily_checks", {}).get(today_str, {})
 cc = sum(1 for i in range(len(CHECKLIST)) if tc.get(str(i), False))
 cp = round((cc / len(CHECKLIST)) * 100)
 bc = "linear-gradient(90deg,#10b981,#34d399)" if cp == 100 else "linear-gradient(90deg,#6366f1,#a78bfa)"
-st.markdown(f"""
-<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;">
-  <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-family:'JetBrains Mono',monospace;">Today's progress</span>
-  <span style="font-size:14px;font-weight:700;color:{"#34d399" if cp==100 else "#818cf8"};font-family:'JetBrains Mono',monospace;">{cc}/{len(CHECKLIST)}</span>
-</div>
-<div class="pbar-outer"><div class="pbar-inner" style="width:{cp}%;background:{bc};"></div></div>
-""", unsafe_allow_html=True)
+st.markdown(f"""<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;"><span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-family:'JetBrains Mono',monospace;">Today's progress</span><span style="font-size:14px;font-weight:700;color:{"#34d399" if cp==100 else "#818cf8"};font-family:'JetBrains Mono',monospace;">{cc}/{len(CHECKLIST)}</span></div><div class="pbar-outer"><div class="pbar-inner" style="width:{cp}%;background:{bc};"></div></div>""", unsafe_allow_html=True)
 
 st.markdown("")
 
@@ -148,22 +130,57 @@ with col_sched:
     if is_sunday:
         st.markdown('<div class="sch-active" style="border-left-color:#818cf8;"><div style="font-size:15px;color:#a5b4fc;font-weight:600;">🧘 Light day — weekly review only</div></div>', unsafe_allow_html=True)
     else:
+        # Build training info for gym block
+        tr_info = TRAINING.get(day_name, {})
+        gym_detail = f'{tr_info.get("act","")} — {tr_info.get("focus","")} ({tr_info.get("dur","")})' if tr_info else ""
+
         for b in SCHEDULE_TEMPLATE:
             active = b["h"][0] <= hour_now < b["h"][1]
-            detail = tasks.get(b["cat"], "") if b["cat"] else ""
-            cls    = "sch-active" if active else "sch-normal"
-            nw     = '<span class="now-tag">NOW</span>' if active else ""
-            dh     = f'<div style="font-size:13px;color:#94a3b8;margin-top:3px;">{detail}</div>' if detail else ""
-            st.markdown(f"""
-            <div class="{cls}">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                  <span style="font-size:13px;font-family:'JetBrains Mono',monospace;color:{"#818cf8" if active else "#475569"};font-weight:600;">{b["time"]}</span>
-                  <span style="margin-left:12px;font-size:14px;font-weight:600;color:{"#f1f5f9" if active else "#cbd5e1"};">{b["label"]}</span>
-                  {dh}
-                </div>{nw}
-              </div>
-            </div>""", unsafe_allow_html=True)
+            cat = b["cat"]
+
+            # Build rich detail for EVERY block
+            if cat:
+                detail = tasks.get(cat, "")
+            elif "Gym" in b["label"]:
+                detail = gym_detail
+            elif "Lunch" in b["label"]:
+                detail = "Eat within meal plan · Hydrate"
+            elif "Nap" in b["label"]:
+                detail = "Power nap · No screens"
+            elif "Pre-gym" in b["label"]:
+                detail = "Warm up · Get ready"
+            elif "Break" in b["label"]:
+                detail = "Stretch · Hydrate · Reset"
+            elif "Review" in b["label"]:
+                detail = "Review notes · GitHub commit · Plan tomorrow"
+            else:
+                detail = ""
+
+            cls = "sch-active" if active else "sch-normal"
+            time_color = "#818cf8" if active else "#475569"
+            label_color = "#f1f5f9" if active else "#cbd5e1"
+
+            now_badge = ""
+            if active:
+                now_badge = '<span class="now-tag">NOW</span>'
+
+            detail_html = ""
+            if detail:
+                detail_html = f'<div style="font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.4;">{detail}</div>'
+
+            html = (
+                f'<div class="{cls}">'
+                f'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+                f'<div style="flex:1;">'
+                f'<span style="font-size:13px;font-family:\'JetBrains Mono\',monospace;color:{time_color};font-weight:600;">{b["time"]}</span>'
+                f'<span style="margin-left:12px;font-size:14px;font-weight:600;color:{label_color};">{b["label"]}</span>'
+                f'{detail_html}'
+                f'</div>'
+                f'{now_badge}'
+                f'</div>'
+                f'</div>'
+            )
+            st.markdown(html, unsafe_allow_html=True)
 
 with col_check:
     st.markdown('<div class="sec-title">Checklist</div>', unsafe_allow_html=True)
