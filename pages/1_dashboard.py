@@ -20,25 +20,11 @@ hour_now    = wi["hour_now"]
 streak      = calc_streak(data)
 is_sunday   = day_name == "Sun"
 
-# ── Sidebar weight + note ─────────────────────────────────
+# ── Sidebar quick links (lightweight — keeps nav visible) ─
 ws = data.get("weights", {})
 lw = ws[sorted(ws.keys(), reverse=True)[0]] if ws else None
 
 with st.sidebar:
-    st.markdown("### ⚖️ Log weight")
-    wi_val = st.number_input("kg", min_value=50.0, max_value=120.0,
-                             value=float(lw if lw else START_WEIGHT), step=0.1)
-    if st.button("💾 Save weight", use_container_width=True):
-        data.setdefault("weights", {})[today_str] = wi_val
-        save_data(data); st.success(f"Saved {wi_val} kg")
-    st.markdown("---")
-    st.markdown("### 📝 Quick note")
-    note = st.text_area("Note", value=data.get("notes", {}).get(today_str, ""),
-                        height=100, label_visibility="collapsed")
-    if st.button("💾 Save note", use_container_width=True):
-        data.setdefault("notes", {})[today_str] = note
-        save_data(data); st.success("Saved")
-    st.markdown("---")
     st.markdown("### 🔗 Quick links")
     st.markdown("[📋 DS + AWS Roadmap](https://www.notion.so/1e7a7b694ee0805a877cf71c3de56f5d)")
     st.markdown("[🔁 Weekly Review](https://www.notion.so/323a7b694ee0817e8253f196589fe26c)")
