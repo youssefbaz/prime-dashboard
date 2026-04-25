@@ -266,8 +266,8 @@ Rules:
 - Total calories close to {target_cal}"""
 
     try:
-        # Gemini API call
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # Gemini API call - using v1 endpoint for better stability
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
         r = requests.post(
             url,
             headers={"Content-Type": "application/json"},

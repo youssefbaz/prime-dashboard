@@ -162,7 +162,7 @@ Be concise, elite, and slightly stoic."""
         if st.button("Generate Today's Reflection", use_container_width=True):
             try:
                 GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+                url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
                 r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
                 if r.status_code == 200:
                     text = r.json()["candidates"][0]["content"]["parts"][0]["text"]

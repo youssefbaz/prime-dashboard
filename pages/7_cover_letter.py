@@ -26,7 +26,7 @@ def gemini_generate(prompt, api_key, max_tokens=2000):
     if not api_key or not HAS_REQUESTS:
         return ""
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
         r = requests.post(
             url,
             headers={"Content-Type": "application/json"},
