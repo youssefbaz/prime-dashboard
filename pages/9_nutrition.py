@@ -273,7 +273,7 @@ Rules:
                 "anthropic-version": "2023-06-01",
             },
             json={
-                "model": "claude-sonnet-4-6",
+                "model": "claude-3-5-sonnet-20240620",
                 "max_tokens": 4000,
                 "messages": [{"role": "user", "content": prompt}],
             },
@@ -297,6 +297,31 @@ Rules:
     except Exception as e:
         return {"error": str(e)}
 
+# ── MealDB Helpers ────────────────────────────────────────
+def fetch_random_meal():
+    try:
+        r = requests.get("https://www.themealdb.com/api/json/v1/1/random.php", timeout=10)
+        if r.status_code == 200:
+            return r.json().get("meals", [None])[0]
+    except: pass
+    return None
+
+def search_meals_by_ingredient(ingredient):
+    try:
+        r = requests.get(f"https://www.themealdb.com/api/json/v1/1/filter.php?i={ingredient}", timeout=10)
+        if r.status_code == 200:
+            return r.json().get("meals", [])
+    except: pass
+    return []
+
+def get_meal_details(meal_id):
+    try:
+        r = requests.get(f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={meal_id}", timeout=10)
+        if r.status_code == 200:
+            return r.json().get("meals", [None])[0]
+    except: pass
+    return None
+
 ALLERGY_MAP  = {
     "Gluten": "gluten", "Dairy": "dairy", "Eggs": "eggs",
     "Nuts": "tree nuts", "Peanuts": "peanuts", "Soy": "soy",
@@ -309,6 +334,7 @@ DIET_OPTIONS = ["No restriction", "Vegetarian", "Vegan", "Gluten-free", "Ketogen
 for k, v in {
     "np_step": 1, "np_profile": {}, "np_allergies": [],
     "np_diet": "No restriction", "np_plan": None, "np_error": "",
+    "md_results": [], "md_search": "",
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -318,298 +344,383 @@ try:
 except Exception:
     CLAUDE_KEY = ""
 
-# ── Step indicator ────────────────────────────────────────
-step   = st.session_state.np_step
-labels = ["Profile", "Preferences", "Your plan"]
-scols  = st.columns(3)
-for i, lbl in enumerate(labels):
-    active = (i + 1 == step)
-    done   = (i + 1 < step)
-    color  = "#818cf8" if active else ("#34d399" if done else "#334155")
-    scols[i].markdown(
-        f'<div style="text-align:center;padding:8px 0;border-bottom:2px solid {color};">'
-        f'<span style="font-size:12px;font-weight:600;color:{color};text-transform:uppercase;'
-        f'letter-spacing:1px;font-family:JetBrains Mono,monospace;">'
-        f'{"✓ " if done else ""}{i+1}. {lbl}</span></div>',
-        unsafe_allow_html=True,
-    )
-st.markdown("<br>", unsafe_allow_html=True)
+# ── Main Tabs ─────────────────────────────────────────────
+tab_planner, tab_discovery = st.tabs(["📋 Nutrition Planner", "🥗 Meal Discovery"])
 
-# ════════════════════════════════════════════════════════
-# STEP 1 — PROFILE
-# ════════════════════════════════════════════════════════
-if step == 1:
-    st.markdown('<div class="sec-title">Your profile</div>', unsafe_allow_html=True)
-    p = st.session_state.np_profile
-
-    s1, s2 = st.columns(2)
-    with s1:
-        sex    = st.radio("Sex", ["Male", "Female"], horizontal=True,
-                          index=0 if p.get("sex", "Male") == "Male" else 1)
-        age    = st.number_input("Age", 16, 80, int(p.get("age", 25)))
-        height = st.number_input("Height (cm)", 140, 220, int(p.get("height", 170)))
-    with s2:
-        weight      = st.number_input("Current weight (kg)", 40.0, 200.0,
-                                      float(p.get("weight", float(lw if lw else START_WEIGHT))), step=0.5)
-        goal_weight = st.number_input("Goal weight (kg)", 40.0, 200.0,
-                                      float(p.get("goal_weight", GOAL_WEIGHT)), step=0.5)
-        activity    = st.selectbox("Activity level", [
-            "Sedentary (desk job)", "Lightly active (1-2x/week)",
-            "Moderately active (3-5x/week)", "Very active (6-7x/week)"], index=2)
-
-    goal_type    = st.selectbox("Goal", ["Lose weight (cut)", "Gain muscle (bulk)", "Maintain"], index=0)
-    period_weeks = st.slider("Plan duration (weeks)", 4, 24, 8)
-
-    tdee = calc_tdee(weight, height, age, sex, activity)
-    if "cut" in goal_type:
-        deficit    = 750 if (weight - goal_weight) / max(period_weeks / 4, 1) > 1 else 500
-        target_cal = tdee - deficit
-        goal_label = f"-{deficit} kcal deficit"
-    elif "bulk" in goal_type:
-        target_cal = tdee + 300
-        goal_label = "+300 kcal surplus"
-    else:
-        target_cal = tdee
-        goal_label = "maintenance"
-
-    protein_g     = round(weight * (2.0 if "bulk" in goal_type else 1.8))
-    weeks_to_goal = abs(round((weight - goal_weight) / (0.5 if "cut" in goal_type else 0.25))) if weight != goal_weight else 0
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    pc1, pc2, pc3, pc4 = st.columns(4)
-    with pc1:
-        st.markdown(f'<div class="s-card"><div class="s-label">TDEE</div><div class="s-val" style="color:#818cf8;">{tdee}</div><div class="s-sub">kcal/day</div></div>', unsafe_allow_html=True)
-    with pc2:
-        st.markdown(f'<div class="s-card"><div class="s-label">Daily target</div><div class="s-val" style="color:#34d399;">{target_cal}</div><div class="s-sub">{goal_label}</div></div>', unsafe_allow_html=True)
-    with pc3:
-        st.markdown(f'<div class="s-card"><div class="s-label">Protein</div><div class="s-val" style="color:#fbbf24;">{protein_g}g</div><div class="s-sub">per day</div></div>', unsafe_allow_html=True)
-    with pc4:
-        st.markdown(f'<div class="s-card"><div class="s-label">Est. duration</div><div class="s-val" style="color:#f472b6;">{weeks_to_goal}w</div><div class="s-sub">to {goal_weight} kg</div></div>', unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("Continue", use_container_width=True):
-        st.session_state.np_profile = dict(
-            sex=sex, age=age, height=height, weight=weight,
-            goal_weight=goal_weight, activity=activity, goal_type=goal_type,
-            period_weeks=period_weeks, tdee=tdee,
-            target_cal=target_cal, protein_g=protein_g,
+with tab_planner:
+    # ── Step indicator ────────────────────────────────────────
+    step   = st.session_state.np_step
+    labels = ["Profile", "Preferences", "Your plan"]
+    scols  = st.columns(3)
+    for i, lbl in enumerate(labels):
+        active = (i + 1 == step)
+        done   = (i + 1 < step)
+        color  = "#818cf8" if active else ("#34d399" if done else "#334155")
+        scols[i].markdown(
+            f'<div style="text-align:center;padding:8px 0;border-bottom:2px solid {color};">'
+            f'<span style="font-size:12px;font-weight:600;color:{color};text-transform:uppercase;'
+            f'letter-spacing:1px;font-family:JetBrains Mono,monospace;">'
+            f'{"✓ " if done else ""}{i+1}. {lbl}</span></div>',
+            unsafe_allow_html=True,
         )
-        st.session_state.np_step = 2
-        st.rerun()
+    st.markdown("<br>", unsafe_allow_html=True)
 
-# ════════════════════════════════════════════════════════
-# STEP 2 — PREFERENCES
-# ════════════════════════════════════════════════════════
-elif step == 2:
-    st.markdown('<div class="sec-title">Dietary preferences</div>', unsafe_allow_html=True)
+    # ════════════════════════════════════════════════════════
+    # STEP 1 — PROFILE
+    # ════════════════════════════════════════════════════════
+    if step == 1:
+        st.markdown('<div class="sec-title">Your profile</div>', unsafe_allow_html=True)
+        p = st.session_state.np_profile
 
-    diet = st.selectbox("Diet type", DIET_OPTIONS,
-                        index=DIET_OPTIONS.index(st.session_state.get("np_diet", "No restriction")))
+        s1, s2 = st.columns(2)
+        with s1:
+            sex    = st.radio("Sex", ["Male", "Female"], horizontal=True,
+                              index=0 if p.get("sex", "Male") == "Male" else 1)
+            age    = st.number_input("Age", 16, 80, int(p.get("age", 25)))
+            height = st.number_input("Height (cm)", 140, 220, int(p.get("height", 170)))
+        with s2:
+            weight      = st.number_input("Current weight (kg)", 40.0, 200.0,
+                                          float(p.get("weight", float(lw if lw else START_WEIGHT))), step=0.5)
+            goal_weight = st.number_input("Goal weight (kg)", 40.0, 200.0,
+                                          float(p.get("goal_weight", GOAL_WEIGHT)), step=0.5)
+            activity    = st.selectbox("Activity level", [
+                "Sedentary (desk job)", "Lightly active (1-2x/week)",
+                "Moderately active (3-5x/week)", "Very active (6-7x/week)"], index=2)
 
-    st.markdown("**Allergies and exclusions — select everything to avoid:**")
-    st.markdown("")
-    acols = st.columns(4)
-    prev  = st.session_state.np_allergies
-    selected_allergies = []
-    for i, (label, val) in enumerate(ALLERGY_MAP.items()):
-        with acols[i % 4]:
-            if st.checkbox(label, value=(label.lower() in prev or val in prev), key=f"al_{label}"):
-                selected_allergies.append(label.lower())
+        goal_type    = st.selectbox("Goal", ["Lose weight (cut)", "Gain muscle (bulk)", "Maintain"], index=0)
+        period_weeks = st.slider("Plan duration (weeks)", 4, 24, 8)
 
-    st.markdown("")
-    custom_ex = st.text_input(
-        "Other ingredients to exclude (comma-separated)",
-        placeholder="e.g. mushrooms, cilantro",
-        key="np_custom_ex",
-    )
+        tdee = calc_tdee(weight, height, age, sex, activity)
+        if "cut" in goal_type:
+            deficit    = 750 if (weight - goal_weight) / max(period_weeks / 4, 1) > 1 else 500
+            target_cal = tdee - deficit
+            goal_label = f"-{deficit} kcal deficit"
+        elif "bulk" in goal_type:
+            target_cal = tdee + 300
+            goal_label = "+300 kcal surplus"
+        else:
+            target_cal = tdee
+            goal_label = "maintenance"
 
-    if not CLAUDE_KEY:
-        st.warning("No Anthropic API key. Add ANTHROPIC_API_KEY to .streamlit/secrets.toml")
+        protein_g     = round(weight * (2.0 if "bulk" in goal_type else 1.8))
+        weeks_to_goal = abs(round((weight - goal_weight) / (0.5 if "cut" in goal_type else 0.25))) if weight != goal_weight else 0
 
-    st.markdown("")
-    b1, b2 = st.columns(2)
-    with b1:
-        if st.button("Back", use_container_width=True):
-            st.session_state.np_step = 1
-            st.rerun()
-    with b2:
-        if st.button("Generate meal plan", use_container_width=True,
-                     disabled=not CLAUDE_KEY, type="primary"):
-            st.session_state.np_allergies = selected_allergies
-            st.session_state.np_diet      = diet
-            st.session_state.np_plan      = None
-            st.session_state.np_error     = ""
-            profile = st.session_state.np_profile
-            with st.spinner("Claude is creating your personalised meal plan..."):
-                result = generate_meal_plan(
-                    CLAUDE_KEY,
-                    profile["target_cal"],
-                    profile["protein_g"],
-                    profile["goal_type"],
-                    selected_allergies,
-                    diet,
-                    custom_ex.strip(),
-                )
-            if "error" in result:
-                st.session_state.np_error = result["error"]
-            else:
-                st.session_state.np_plan = result
-            st.session_state.np_step = 3
-            st.rerun()
+        st.markdown("<br>", unsafe_allow_html=True)
+        pc1, pc2, pc3, pc4 = st.columns(4)
+        with pc1:
+            st.markdown(f'<div class="s-card"><div class="s-label">TDEE</div><div class="s-val" style="color:#818cf8;">{tdee}</div><div class="s-sub">kcal/day</div></div>', unsafe_allow_html=True)
+        with pc2:
+            st.markdown(f'<div class="s-card"><div class="s-label">Daily target</div><div class="s-val" style="color:#34d399;">{target_cal}</div><div class="s-sub">{goal_label}</div></div>', unsafe_allow_html=True)
+        with pc3:
+            st.markdown(f'<div class="s-card"><div class="s-label">Protein</div><div class="s-val" style="color:#fbbf24;">{protein_g}g</div><div class="s-sub">per day</div></div>', unsafe_allow_html=True)
+        with pc4:
+            st.markdown(f'<div class="s-card"><div class="s-label">Est. duration</div><div class="s-val" style="color:#f472b6;">{weeks_to_goal}w</div><div class="s-sub">to {goal_weight} kg</div></div>', unsafe_allow_html=True)
 
-# ════════════════════════════════════════════════════════
-# STEP 3 — RESULTS
-# ════════════════════════════════════════════════════════
-elif step == 3:
-    profile = st.session_state.np_profile
-    plan    = st.session_state.np_plan
-    error   = st.session_state.np_error
-
-    rb1, rb2 = st.columns([1, 3])
-    with rb1:
-        if st.button("Edit profile"):
-            st.session_state.np_step = 1
-            st.rerun()
-    with rb2:
-        if st.button("Regenerate plan", use_container_width=True):
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Continue", use_container_width=True):
+            st.session_state.np_profile = dict(
+                sex=sex, age=age, height=height, weight=weight,
+                goal_weight=goal_weight, activity=activity, goal_type=goal_type,
+                period_weeks=period_weeks, tdee=tdee,
+                target_cal=target_cal, protein_g=protein_g,
+            )
             st.session_state.np_step = 2
             st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    # ════════════════════════════════════════════════════════
+    # STEP 2 — PREFERENCES
+    # ════════════════════════════════════════════════════════
+    elif step == 2:
+        st.markdown('<div class="sec-title">Dietary preferences</div>', unsafe_allow_html=True)
 
-    if error:
-        st.error(f"{error}")
-        st.info("Click Edit profile or Regenerate to try again.")
+        diet = st.selectbox("Diet type", DIET_OPTIONS,
+                            index=DIET_OPTIONS.index(st.session_state.get("np_diet", "No restriction")))
 
-    elif plan:
-        meals  = plan.get("meals", [])
-        totals = plan.get("daily_totals", {})
-        tips   = plan.get("tips", [])
+        st.markdown("**Allergies and exclusions — select everything to avoid:**")
+        st.markdown("")
+        acols = st.columns(4)
+        prev  = st.session_state.np_allergies
+        selected_allergies = []
+        for i, (label, val) in enumerate(ALLERGY_MAP.items()):
+            with acols[i % 4]:
+                if st.checkbox(label, value=(label.lower() in prev or val in prev), key=f"al_{label}"):
+                    selected_allergies.append(label.lower())
 
-        # ── Summary cards ─────────────────────────────────
-        st.markdown('<div class="sec-title">Daily summary</div>', unsafe_allow_html=True)
-        nc1, nc2, nc3, nc4, nc5 = st.columns(5)
-        target_cal = profile.get("target_cal", 0)
-        plan_cal   = totals.get("calories", 0)
-        diff       = plan_cal - target_cal
-        diff_color = "#34d399" if abs(diff) <= 100 else ("#fbbf24" if abs(diff) <= 200 else "#ef4444")
+        st.markdown("")
+        custom_ex = st.text_input(
+            "Other ingredients to exclude (comma-separated)",
+            placeholder="e.g. mushrooms, cilantro",
+            key="np_custom_ex",
+        )
 
-        for col, (lbl, val, color, sub) in zip([nc1, nc2, nc3, nc4, nc5], [
-            ("Target",  target_cal,               "#818cf8", "kcal/day"),
-            ("Planned", plan_cal,                 diff_color, f"{diff:+d} kcal"),
-            ("Protein", totals.get("protein", 0), "#fbbf24", f"target {profile.get('protein_g',0)}g"),
-            ("Carbs",   totals.get("carbs", 0),   "#60a5fa", "grams"),
-            ("Fat",     totals.get("fat", 0),     "#f472b6", "grams"),
-        ]):
-            col.markdown(
-                f'<div class="s-card"><div class="s-label">{lbl}</div>'
-                f'<div class="s-val" style="color:{color};font-size:22px;">{val}</div>'
-                f'<div class="s-sub">{sub}</div></div>',
-                unsafe_allow_html=True,
-            )
+        if not CLAUDE_KEY:
+            st.warning("No Anthropic API key. Add ANTHROPIC_API_KEY to .streamlit/secrets.toml")
+
+        st.markdown("")
+        b1, b2 = st.columns(2)
+        with b1:
+            if st.button("Back", use_container_width=True):
+                st.session_state.np_step = 1
+                st.rerun()
+        with b2:
+            if st.button("Generate meal plan", use_container_width=True,
+                         disabled=not CLAUDE_KEY, type="primary"):
+                st.session_state.np_allergies = selected_allergies
+                st.session_state.np_diet      = diet
+                st.session_state.np_plan      = None
+                st.session_state.np_error     = ""
+                profile = st.session_state.np_profile
+                with st.spinner("Claude is creating your personalised meal plan..."):
+                    result = generate_meal_plan(
+                        CLAUDE_KEY,
+                        profile["target_cal"],
+                        profile["protein_g"],
+                        profile["goal_type"],
+                        selected_allergies,
+                        diet,
+                        custom_ex.strip(),
+                    )
+                if "error" in result:
+                    st.session_state.np_error = result["error"]
+                else:
+                    st.session_state.np_plan = result
+                st.session_state.np_step = 3
+                st.rerun()
+
+    # ════════════════════════════════════════════════════════
+    # STEP 3 — RESULTS
+    # ════════════════════════════════════════════════════════
+    elif step == 3:
+        profile = st.session_state.np_profile
+        plan    = st.session_state.np_plan
+        error   = st.session_state.np_error
+
+        rb1, rb2 = st.columns([1, 3])
+        with rb1:
+            if st.button("Edit profile"):
+                st.session_state.np_step = 1
+                st.rerun()
+        with rb2:
+            if st.button("Regenerate plan", use_container_width=True):
+                st.session_state.np_step = 2
+                st.rerun()
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown('<div class="sec-title">Your meals</div>', unsafe_allow_html=True)
 
-        # ── Meal type icons ──────────────────────────────
-        meal_emoji = {"Breakfast": "🌅", "Lunch": "☀️", "Dinner": "🌙", "Snack": "🍎"}
+        if error:
+            st.error(f"{error}")
+            st.info("Click Edit profile or Regenerate to try again.")
 
-        # ── Meal cards with images ───────────────────────
-        for meal in meals:
-            meal_type  = meal.get("type", "Meal")
-            name       = meal.get("name", "")
-            desc       = meal.get("description", "")
-            cal        = meal.get("calories", "")
-            prot       = meal.get("protein", "")
-            carbs_val  = meal.get("carbs", "")
-            fat_val    = meal.get("fat", "")
-            prep       = meal.get("prep_time", 0)
-            cook_t     = meal.get("cook_time", 0)
-            ingrs      = meal.get("ingredients", [])
-            steps      = meal.get("instructions", [])
-            image_url  = meal.get("image_url", None)
-            total_time = (prep + cook_t) if isinstance(prep, int) and isinstance(cook_t, int) else ""
+        elif plan:
+            meals  = plan.get("meals", [])
+            totals = plan.get("daily_totals", {})
+            tips   = plan.get("tips", [])
 
-            # Hero image section
-            if image_url:
-                hero_html = f'''<div class="meal-hero">
-                    <img src="{image_url}" alt="{name}" loading="lazy"/>
-                    <div class="meal-hero-overlay">
-                        <div class="meal-hero-type">{meal_emoji.get(meal_type, "🍽️")} {meal_type}</div>
-                        <div class="meal-hero-name">{name}</div>
-                        <div class="meal-hero-desc">{desc}</div>
-                    </div>
-                </div>'''
+            # ── Summary cards ─────────────────────────────────
+            st.markdown('<div class="sec-title">Daily summary</div>', unsafe_allow_html=True)
+            nc1, nc2, nc3, nc4, nc5 = st.columns(5)
+            target_cal = profile.get("target_cal", 0)
+            plan_cal   = totals.get("calories", 0)
+            diff       = plan_cal - target_cal
+            diff_color = "#34d399" if abs(diff) <= 100 else ("#fbbf24" if abs(diff) <= 200 else "#ef4444")
+
+            for col, (lbl, val, color, sub) in zip([nc1, nc2, nc3, nc4, nc5], [
+                ("Target",  target_cal,               "#818cf8", "kcal/day"),
+                ("Planned", plan_cal,                 diff_color, f"{diff:+d} kcal"),
+                ("Protein", totals.get("protein", 0), "#fbbf24", f"target {profile.get('protein_g',0)}g"),
+                ("Carbs",   totals.get("carbs", 0),   "#60a5fa", "grams"),
+                ("Fat",     totals.get("fat", 0),     "#f472b6", "grams"),
+            ]):
+                col.markdown(
+                    f'<div class="s-card"><div class="s-label">{lbl}</div>'
+                    f'<div class="s-val" style="color:{color};font-size:22px;">{val}</div>'
+                    f'<div class="s-sub">{sub}</div></div>',
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown('<div class="sec-title">Your meals</div>', unsafe_allow_html=True)
+
+            # ── Meal type icons ──────────────────────────────
+            meal_emoji = {"Breakfast": "🌅", "Lunch": "☀️", "Dinner": "🌙", "Snack": "🍎"}
+
+            # ── Meal cards with images ───────────────────────
+            for meal in meals:
+                meal_type  = meal.get("type", "Meal")
+                name       = meal.get("name", "")
+                desc       = meal.get("description", "")
+                cal        = meal.get("calories", "")
+                prot       = meal.get("protein", "")
+                carbs_val  = meal.get("carbs", "")
+                fat_val    = meal.get("fat", "")
+                prep       = meal.get("prep_time", 0)
+                cook_t     = meal.get("cook_time", 0)
+                ingrs      = meal.get("ingredients", [])
+                steps      = meal.get("instructions", [])
+                image_url  = meal.get("image_url", None)
+                total_time = (prep + cook_t) if isinstance(prep, int) and isinstance(cook_t, int) else ""
+
+                # Hero image section
+                if image_url:
+                    hero_html = f'''<div class="meal-hero">
+                        <img src="{image_url}" alt="{name}" loading="lazy"/>
+                        <div class="meal-hero-overlay">
+                            <div class="meal-hero-type">{meal_emoji.get(meal_type, "🍽️")} {meal_type}</div>
+                            <div class="meal-hero-name">{name}</div>
+                            <div class="meal-hero-desc">{desc}</div>
+                        </div>
+                    </div>'''
+                else:
+                    hero_html = f'''<div class="meal-hero">
+                        <div class="no-img-placeholder">{meal_emoji.get(meal_type, "🍽️")}</div>
+                        <div class="meal-hero-overlay">
+                            <div class="meal-hero-type">{meal_type}</div>
+                            <div class="meal-hero-name">{name}</div>
+                            <div class="meal-hero-desc">{desc}</div>
+                        </div>
+                    </div>'''
+
+                # Build ingredients rows
+                ing_html = ""
+                for ing in ingrs:
+                    amt   = ing.get("amount", "")
+                    unit  = ing.get("unit", "")
+                    iname = ing.get("name", "")
+                    ing_html += f'<div class="ing-row"><span class="ing-name">{iname}</span><span class="ing-amount">{amt}{unit}</span></div>'
+
+                # Build instruction rows
+                step_html = ""
+                for j, step_txt in enumerate(steps):
+                    step_html += f'<div class="step-row"><span class="step-num">{j+1}.</span><span class="step-text">{step_txt}</span></div>'
+
+                st.markdown(f"""
+    <div class="meal-card">
+      {hero_html}
+      <div class="meal-body">
+        <div class="meal-time-bar">
+          <div class="meal-time-chip chip-prep">🔪 Prep {prep} min</div>
+          <div class="meal-time-chip chip-cook">🔥 Cook {cook_t} min</div>
+          <div class="meal-time-chip chip-total">⏱ Total {total_time} min</div>
+        </div>
+        <div class="meal-macros">
+          <span class="macro-tag" style="background:rgba(129,140,248,0.12);color:#818cf8;">{cal} kcal</span>
+          <span class="macro-tag" style="background:rgba(251,191,36,0.12);color:#fbbf24;">{prot}g protein</span>
+          <span class="macro-tag" style="background:rgba(96,165,250,0.12);color:#60a5fa;">{carbs_val}g carbs</span>
+          <span class="macro-tag" style="background:rgba(244,114,182,0.12);color:#f472b6;">{fat_val}g fat</span>
+        </div>
+        <div class="meal-grid">
+          <div>
+            <div class="meal-section-title">Ingredients</div>
+            {ing_html}
+          </div>
+          <div>
+            <div class="meal-section-title">Instructions</div>
+            {step_html}
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+            # ── Tips ──────────────────────────────────────────
+            if tips:
+                tips_html = "".join(
+                    f'<div style="font-size:13px;color:#94a3b8;padding:5px 0;line-height:1.6;'
+                    f'border-bottom:1px solid rgba(255,255,255,0.04);">  {t}</div>'
+                    for t in tips
+                )
+                st.markdown(f"""
+    <div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:14px;padding:18px 22px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:1px;font-family:JetBrains Mono,monospace;margin-bottom:10px;">💡 Personalised tips</div>
+      {tips_html}
+    </div>""", unsafe_allow_html=True)
+
+            st.markdown("""
+    <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.12);border-radius:14px;padding:16px 20px;">
+      <div style="font-size:12px;font-weight:700;color:#fca5a5;text-transform:uppercase;letter-spacing:1px;font-family:JetBrains Mono,monospace;margin-bottom:8px;">🚫 Always avoid</div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.8;">Sugary drinks · Ultra-processed snacks · Late-night eating after 11 PM · Fried food · Alcohol</div>
+    </div>""", unsafe_allow_html=True)
+
+        else:
+            st.info("Something went wrong. Click Edit profile to try again.")
+
+with tab_discovery:
+    st.markdown('<div class="sec-title">Explore new recipes</div>', unsafe_allow_html=True)
+    st.markdown('<div style="color:#94a3b8;font-size:14px;margin-bottom:20px;">Find inspiration from TheMealDB database.</div>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        search_query = st.text_input("Search by ingredient", placeholder="e.g. chicken, broccoli, pasta", key="md_search_input")
+    with c2:
+        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+        if st.button("Search", use_container_width=True):
+            if search_query:
+                with st.spinner("Searching..."):
+                    st.session_state.md_results = search_meals_by_ingredient(search_query)
             else:
-                hero_html = f'''<div class="meal-hero">
-                    <div class="no-img-placeholder">{meal_emoji.get(meal_type, "🍽️")}</div>
-                    <div class="meal-hero-overlay">
-                        <div class="meal-hero-type">{meal_type}</div>
-                        <div class="meal-hero-name">{name}</div>
-                        <div class="meal-hero-desc">{desc}</div>
+                st.warning("Please enter an ingredient.")
+
+    st.markdown("<div style='text-align:center;margin:10px 0;'>OR</div>", unsafe_allow_html=True)
+    if st.button("🎲 Get a Random Meal", use_container_width=True, type="primary"):
+        with st.spinner("Fetching random meal..."):
+            meal = fetch_random_meal()
+            if meal:
+                st.session_state.md_results = [meal]
+            else:
+                st.error("Could not fetch a random meal.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    results = st.session_state.md_results
+    if results:
+        for m in results:
+            # If it's a search result, it only has id, name, thumb. Need to fetch details.
+            if "strInstructions" not in m:
+                m = get_meal_details(m["idMeal"])
+
+            if not m: continue
+
+            name = m.get("strMeal")
+            img = m.get("strMealThumb")
+            instr = m.get("strInstructions")
+            yt = m.get("strYoutube")
+            area = m.get("strArea")
+            cat = m.get("strCategory")
+
+            # Extract ingredients
+            ing_list = []
+            for i in range(1, 21):
+                ing = m.get(f"strIngredient{i}")
+                msr = m.get(f"strMeasure{i}")
+                if ing and ing.strip():
+                    ing_list.append(f"{msr.strip()} {ing.strip()}" if msr else ing.strip())
+
+            with st.container():
+                st.markdown(f"""
+                <div class="meal-card">
+                    <div class="meal-hero">
+                        <img src="{img}" alt="{name}" loading="lazy"/>
+                        <div class="meal-hero-overlay">
+                            <div class="meal-hero-type">{cat} · {area}</div>
+                            <div class="meal-hero-name">{name}</div>
+                        </div>
                     </div>
-                </div>'''
-
-            # Build ingredients rows
-            ing_html = ""
-            for ing in ingrs:
-                amt   = ing.get("amount", "")
-                unit  = ing.get("unit", "")
-                iname = ing.get("name", "")
-                ing_html += f'<div class="ing-row"><span class="ing-name">{iname}</span><span class="ing-amount">{amt}{unit}</span></div>'
-
-            # Build instruction rows
-            step_html = ""
-            for j, step_txt in enumerate(steps):
-                step_html += f'<div class="step-row"><span class="step-num">{j+1}.</span><span class="step-text">{step_txt}</span></div>'
-
-            st.markdown(f"""
-<div class="meal-card">
-  {hero_html}
-  <div class="meal-body">
-    <div class="meal-time-bar">
-      <div class="meal-time-chip chip-prep">🔪 Prep {prep} min</div>
-      <div class="meal-time-chip chip-cook">🔥 Cook {cook_t} min</div>
-      <div class="meal-time-chip chip-total">⏱ Total {total_time} min</div>
-    </div>
-    <div class="meal-macros">
-      <span class="macro-tag" style="background:rgba(129,140,248,0.12);color:#818cf8;">{cal} kcal</span>
-      <span class="macro-tag" style="background:rgba(251,191,36,0.12);color:#fbbf24;">{prot}g protein</span>
-      <span class="macro-tag" style="background:rgba(96,165,250,0.12);color:#60a5fa;">{carbs_val}g carbs</span>
-      <span class="macro-tag" style="background:rgba(244,114,182,0.12);color:#f472b6;">{fat_val}g fat</span>
-    </div>
-    <div class="meal-grid">
-      <div>
-        <div class="meal-section-title">Ingredients</div>
-        {ing_html}
-      </div>
-      <div>
-        <div class="meal-section-title">Instructions</div>
-        {step_html}
-      </div>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-        # ── Tips ──────────────────────────────────────────
-        if tips:
-            tips_html = "".join(
-                f'<div style="font-size:13px;color:#94a3b8;padding:5px 0;line-height:1.6;'
-                f'border-bottom:1px solid rgba(255,255,255,0.04);">  {t}</div>'
-                for t in tips
-            )
-            st.markdown(f"""
-<div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:14px;padding:18px 22px;margin-bottom:12px;">
-  <div style="font-size:12px;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:1px;font-family:JetBrains Mono,monospace;margin-bottom:10px;">💡 Personalised tips</div>
-  {tips_html}
-</div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-<div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.12);border-radius:14px;padding:16px 20px;">
-  <div style="font-size:12px;font-weight:700;color:#fca5a5;text-transform:uppercase;letter-spacing:1px;font-family:JetBrains Mono,monospace;margin-bottom:8px;">🚫 Always avoid</div>
-  <div style="font-size:13px;color:#94a3b8;line-height:1.8;">Sugary drinks · Ultra-processed snacks · Late-night eating after 11 PM · Fried food · Alcohol</div>
-</div>""", unsafe_allow_html=True)
-
-    else:
-        st.info("Something went wrong. Click Edit profile to try again.")
+                    <div class="meal-body">
+                        <div class="meal-grid">
+                            <div>
+                                <div class="meal-section-title">Ingredients</div>
+                                {"".join([f'<div class="ing-row"><span class="ing-name">{ing}</span></div>' for ing in ing_list])}
+                            </div>
+                            <div>
+                                <div class="meal-section-title">Instructions</div>
+                                <div style="font-size:13px;color:#94a3b8;line-height:1.6;max-height:300px;overflow-y:auto;padding-right:10px;">
+                                    {instr.replace("\r\n", "<br>")}
+                                </div>
+                                {f'<div style="margin-top:20px;"><a href="{yt}" target="_blank" style="color:#ef4444;text-decoration:none;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;">▶ Watch on YouTube</a></div>' if yt else ""}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    elif "md_search_input" in st.session_state and st.session_state.md_search_input:
+        st.info("No meals found for this ingredient. Try something else!")

@@ -20,7 +20,8 @@ def load_data():
         with open(DATA_FILE, "r") as f:
             return json.load(f)
     return {"daily_checks": {}, "weights": {}, "notes": {}, "missed_acks": [],
-            "jobs": [], "quiz_history": {}, "flash_scores": {}, "cover_letters": []}
+            "jobs": [], "quiz_history": {}, "flash_scores": {}, "cover_letters": [],
+            "focus_sessions": []}
 
 def save_data(d):
     with open(DATA_FILE, "w") as f:

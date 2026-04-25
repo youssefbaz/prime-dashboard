@@ -40,7 +40,7 @@ def claude_generate(prompt, max_tokens=2000):
                 "anthropic-version": "2023-06-01",
             },
             json={
-                "model": "claude-sonnet-4-6",
+                "model": "claude-3-5-sonnet-20240620",
                 "max_tokens": max_tokens,
                 "messages": [{"role": "user", "content": prompt}],
             },

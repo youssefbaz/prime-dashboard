@@ -92,11 +92,22 @@ missed = get_missed()
 if missed:
     st.markdown(f"""<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:14px;padding:16px 22px;margin-bottom:20px;"><div style="font-size:15px;font-weight:700;color:#fca5a5;">⚠️ {len(missed)} day{"s" if len(missed)>1 else ""} without check-in</div><div style="font-size:13px;color:#f87171;margin-top:4px;">Complete your checklist to clear these.</div></div>""", unsafe_allow_html=True)
     with st.expander(f"Review {len(missed)} missed day(s)"):
-        cols = st.columns(min(4, len(missed)))
-        for i, m in enumerate(missed[:12]):
-            with cols[i % min(4, len(missed))]:
-                st.markdown(f"**{m['label']}**")
-                if st.button("✅ Acknowledge", key=f"ack_{m['str']}"):
+        if st.button(f"✅ Acknowledge all {len(missed)}", key="ack_all", use_container_width=True):
+            data.setdefault("missed_acks", []).extend(m["str"] for m in missed)
+            save_data(data); st.rerun()
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        for m in missed:
+            row_l, row_r = st.columns([3, 1])
+            with row_l:
+                st.markdown(
+                    f'<div style="padding:10px 14px;background:rgba(255,255,255,0.02);'
+                    f'border:1px solid rgba(255,255,255,0.06);border-radius:10px;'
+                    f'font-size:14px;color:#cbd5e1;font-family:JetBrains Mono,monospace;">'
+                    f'{m["label"]}</div>',
+                    unsafe_allow_html=True,
+                )
+            with row_r:
+                if st.button("Acknowledge", key=f"ack_{m['str']}", use_container_width=True):
                     data.setdefault("missed_acks", []).append(m["str"])
                     save_data(data); st.rerun()
 
