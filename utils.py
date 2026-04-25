@@ -138,6 +138,55 @@ def get_due_cards(flash_data, all_cards):
     return [d[0] for d in due] + new[:3]
 
 # ─────────────────────────────────────────────────────────
+# GAMIFICATION
+# ─────────────────────────────────────────────────────────
+XP_PER_CHECK      = 15
+XP_PER_JOB        = 50
+XP_PER_FOCUS_MIN  = 1
+XP_PER_QUIZ       = 30
+XP_PER_FLASHCARD  = 20
+XP_PER_WEIGHT     = 25
+
+def calc_xp(data):
+    xp = 0
+    # Checklist XP
+    for checks in data.get("daily_checks", {}).values():
+        xp += sum(XP_PER_CHECK for v in checks.values() if v)
+    
+    # Focus XP
+    for s in data.get("focus_sessions", []):
+        xp += s.get("minutes", 0) * XP_PER_FOCUS_MIN
+    
+    # Job XP
+    xp += len(data.get("jobs", [])) * XP_PER_JOB
+    
+    # Quiz XP
+    for q in data.get("quiz_history", {}).values():
+        xp += len(q) * XP_PER_QUIZ
+        
+    # Flashcard XP
+    for f in data.get("flash_scores", {}).values():
+        xp += len(f) * XP_PER_FLASHCARD
+        
+    # Weight log XP
+    xp += len(data.get("weights", {})) * XP_PER_WEIGHT
+    
+    return xp
+
+def get_level(xp):
+    # Lvl 1: 0, Lvl 2: 500, Lvl 3: 1200, etc.
+    # Simple quadratic: XP = 250 * L * (L-1)
+    # L = (1 + sqrt(1 + 4*XP/250)) / 2
+    import math
+    if xp <= 0: return 1, 0, 500
+    level = math.floor((1 + math.sqrt(1 + 8 * xp / 500)) / 2)
+    current_lvl_xp = 250 * level * (level - 1)
+    next_lvl_xp    = 250 * (level + 1) * level
+    progress       = xp - current_lvl_xp
+    required       = next_lvl_xp - current_lvl_xp
+    return level, progress, required
+
+# ─────────────────────────────────────────────────────────
 # STATIC DATA
 # ─────────────────────────────────────────────────────────
 QUOTES = [

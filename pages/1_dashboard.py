@@ -3,7 +3,13 @@ import datetime
 from utils import (load_data, save_data, get_week_info, calc_streak,
                    get_daily_quote, TRAINING, CHECKLIST, SCHEDULE_TEMPLATE,
                    ML_BY_WEEK, AWS_BY_WEEK, PRACTICE_BY_WEEK, JOB_BY_WEEK,
-                   PLAN_START, PLAN_END, GOAL_WEIGHT, START_WEIGHT)
+                   PLAN_START, PLAN_END, GOAL_WEIGHT, START_WEIGHT, calc_xp, get_level)
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 data     = load_data()
 wi       = get_week_info()
@@ -20,11 +26,18 @@ hour_now    = wi["hour_now"]
 streak      = calc_streak(data)
 is_sunday   = day_name == "Sun"
 
+# Gamification stats
+xp = calc_xp(data)
+lvl, prog, req = get_level(xp)
+
 # ── Sidebar quick links (lightweight — keeps nav visible) ─
 ws = data.get("weights", {})
 lw = ws[sorted(ws.keys(), reverse=True)[0]] if ws else None
 
 with st.sidebar:
+    st.markdown(f"### ⭐ Rank: Level {lvl}")
+    st.markdown(f"**{xp} Total XP**")
+    st.markdown("---")
     st.markdown("### ⚖️ Log weight")
     w_input = st.number_input("Weight (kg)", min_value=40.0, max_value=200.0,
                               value=float(lw if lw else START_WEIGHT), step=0.1,
@@ -116,14 +129,56 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(f'<div class="s-card"><div class="s-label">Progress</div><div class="s-val" style="color:#818cf8;">{pct}%</div><div class="s-sub">Week {week_num} of 8</div></div>', unsafe_allow_html=True)
 with c2:
-    wd  = f"{lw:.1f}" if lw else "—"
-    wc  = "#34d399" if lw and lw <= GOAL_WEIGHT else "#fbbf24" if lw else "#64748b"
-    st.markdown(f'<div class="s-card"><div class="s-label">Weight</div><div class="s-val" style="color:{wc};">{wd}</div><div class="s-sub">Goal: {GOAL_WEIGHT} kg</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="s-card"><div class="s-label">Experience</div><div class="s-val" style="color:#f472b6;">LVL {lvl}</div><div class="s-sub">{prog}/{req} XP to next</div></div>', unsafe_allow_html=True)
 with c3:
-    st.markdown(f'<div class="s-card"><div class="s-label">Streak</div><div class="s-val" style="color:#f472b6;">{streak}</div><div class="s-sub">Consecutive days</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="s-card"><div class="s-label">Streak</div><div class="s-val" style="color:#34d399;">{streak}</div><div class="s-sub">Consecutive days</div></div>', unsafe_allow_html=True)
 with c4:
-    tr = TRAINING.get(day_name, {})
-    st.markdown(f'<div class="s-card"><div class="s-label">Training</div><div style="font-size:15px;font-weight:700;color:#34d399;margin:6px 0;">{tr.get("act","—")}</div><div class="s-sub">{tr.get("dur","")} — {tr.get("focus","")}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="s-card"><div class="s-label">Weight</div><div class="s-val" style="color:#fbbf24;">{lw if lw else "—"}</div><div class="s-sub">Goal: {GOAL_WEIGHT} kg</div></div>', unsafe_allow_html=True)
+
+# ── AI Daily Reflection (After 8 PM) ──────────────────────
+if now.hour >= 20:
+    st.markdown('<div class="sec-title">🌙 Coach\'s Evening Reflection</div>', unsafe_allow_html=True)
+    
+    # Check if reflection already generated today
+    if f"reflection_{today_str}" not in st.session_state:
+        # Prepare data for Gemini
+        tc = data.get("daily_checks", {}).get(today_str, {})
+        done_count = sum(1 for v in tc.values() if v)
+        focus_ss = data.get("focus_sessions", [])
+        today_focus = sum(s.get("minutes",0) for s in focus_ss if s.get("date") == today_str)
+        
+        prompt = f"""You are 'Prime Coach', a high-performance mentor. It's the end of the day.
+Summary of today:
+- Tasks completed: {done_count} out of {len(CHECKLIST)}
+- Focus time: {today_focus} minutes
+- Vibe: {tasks['vibe']}
+
+Write a 3-sentence motivational debrief. 
+1st sentence: Acknowledge the effort (be direct).
+2nd sentence: One specific piece of advice based on the progress.
+3rd sentence: A powerful closing for tomorrow.
+Be concise, elite, and slightly stoic."""
+
+        if st.button("Generate Today's Reflection", use_container_width=True):
+            try:
+                GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+                r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
+                if r.status_code == 200:
+                    text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    st.session_state[f"reflection_{today_str}"] = text
+                    st.rerun()
+                else:
+                    st.error(f"Coach is busy. (Error {r.status_code})")
+            except:
+                st.error("Could not reach the coach.")
+    
+    if f"reflection_{today_str}" in st.session_state:
+        st.markdown(f"""
+        <div style="background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.15); border-radius:16px; padding:24px; margin-bottom:30px;">
+            <div style="font-size:15px; color:#cbd5e1; font-style:italic; line-height:1.7;">"{st.session_state[f"reflection_{today_str}"]}"</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ── Progress bar ──────────────────────────────────────────
 tc = data.get("daily_checks", {}).get(today_str, {})

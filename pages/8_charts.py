@@ -1,21 +1,92 @@
 import streamlit as st
 import datetime
 import pandas as pd
-from utils import load_data, get_week_info, CHECKLIST, GOAL_WEIGHT
+import math
+from utils import load_data, get_week_info, CHECKLIST, GOAL_WEIGHT, PLAN_START
 
 data = load_data()
 wi   = get_week_info()
 today = wi["today"]
 
-st.markdown('<p class="page-title">Analytics</p>', unsafe_allow_html=True)
-st.markdown('<p class="page-sub">Your progress over time — consistency is the metric that matters.</p>', unsafe_allow_html=True)
+st.markdown('<p class="page-title">Analytics & Mastery</p>', unsafe_allow_html=True)
+st.markdown('<p class="page-sub">Visualize your discipline. Consistency is the only hack.</p>', unsafe_allow_html=True)
 
 all_checks = data.get("daily_checks", {})
 ws         = data.get("weights", {})
 jobs       = data.get("jobs", [])
 focus_ss   = data.get("focus_sessions", [])
 
-# ── Summary cards ─────────────────────────────────────────
+# ── Achievements / Badges ────────────────────────────────
+st.markdown('<div class="sec-title">Achievements</div>', unsafe_allow_html=True)
+bc1, bc2, bc3, bc4, bc5 = st.columns(5)
+
+# Badge logic
+streak_val = sum(1 for d, c in all_checks.items() if sum(v for v in c.values()) >= 5)
+focus_total = sum(s.get("minutes",0) for s in focus_ss)
+job_total = len(jobs)
+
+badges = [
+    {"name": "Early Bird", "icon": "🌅", "unlocked": len(all_checks) > 0},
+    {"name": "Consistency", "icon": "🔥", "unlocked": streak_val >= 7},
+    {"name": "Deep Work", "icon": "🧠", "unlocked": focus_total >= 1000},
+    {"name": "Job Hunter", "icon": "💼", "unlocked": job_total >= 10},
+    {"name": "Data Driven", "icon": "📊", "unlocked": len(ws) >= 5},
+]
+
+cols = [bc1, bc2, bc3, bc4, bc5]
+for i, b in enumerate(badges):
+    opacity = "1" if b["unlocked"] else "0.2"
+    grayscale = "" if b["unlocked"] else "filter:grayscale(100%);"
+    cols[i].markdown(f"""
+    <div class="badge-card" style="opacity:{opacity}; {grayscale}">
+        <div class="badge-icon">{b["icon"]}</div>
+        <div class="badge-name">{b["name"]}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ── Activity Heatmap (GitHub Style) ──────────────────────
+st.markdown('<div class="sec-title">Discipline Heatmap</div>', unsafe_allow_html=True)
+
+# Generate last 12 weeks of dates
+end_date = today
+start_date = end_date - datetime.timedelta(weeks=12)
+# Adjust start_date to Monday
+start_date -= datetime.timedelta(days=start_date.weekday())
+
+# Build activity map
+activity_map = {}
+for d_str, checks in all_checks.items():
+    activity_map[d_str] = sum(1 for v in checks.values() if v)
+
+heatmap_html = '<div style="display:flex; gap:3px; overflow-x:auto; padding:10px 0;">'
+curr = start_date
+while curr <= end_date:
+    if curr.weekday() == 0: # New week column
+        heatmap_html += '<div style="display:flex; flex-direction:column; gap:3px;">'
+    
+    # Calculate color based on activity
+    count = activity_map.get(curr.isoformat(), 0)
+    # Color scale: 0:transparent, 1-3:low, 4-6:med, 7-9:high
+    color = "rgba(255,255,255,0.03)"
+    if count > 0:
+        if count <= 3: color = "rgba(99,102,241,0.2)"
+        elif count <= 6: color = "rgba(99,102,241,0.5)"
+        else: color = "rgba(99,102,241,0.9)"
+    
+    border = "1px solid rgba(255,255,255,0.05)"
+    if curr == today: border = "1px solid #818cf8"
+    
+    heatmap_html += f'<div title="{curr.strftime("%b %d")}: {count} tasks" style="width:12px; height:12px; background:{color}; border-radius:2px; border:{border};"></div>'
+    
+    if curr.weekday() == 6: # End week column
+        heatmap_html += '</div>'
+    curr += datetime.timedelta(days=1)
+heatmap_html += '</div>'
+
+st.markdown(heatmap_html, unsafe_allow_html=True)
+st.markdown('<div style="font-size:10px; color:#475569; font-family:JetBrains Mono;">Less <span style="display:inline-block; width:10px; height:10px; background:rgba(99,102,241,0.2); border-radius:2px;"></span> <span style="display:inline-block; width:10px; height:10px; background:rgba(99,102,241,0.5); border-radius:2px;"></span> <span style="display:inline-block; width:10px; height:10px; background:rgba(99,102,241,0.9); border-radius:2px;"></span> More</div>', unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
 total_days_logged = len(all_checks)
 total_tasks_done  = sum(sum(1 for v in checks.values() if v) for checks in all_checks.values())
 total_jobs        = len(jobs)
