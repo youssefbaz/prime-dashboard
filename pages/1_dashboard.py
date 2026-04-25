@@ -25,6 +25,21 @@ ws = data.get("weights", {})
 lw = ws[sorted(ws.keys(), reverse=True)[0]] if ws else None
 
 with st.sidebar:
+    st.markdown("### ⚖️ Log weight")
+    w_input = st.number_input("Weight (kg)", min_value=40.0, max_value=200.0,
+                              value=float(lw if lw else START_WEIGHT), step=0.1,
+                              key="weight_input")
+    if st.button("Save weight", use_container_width=True, key="save_weight"):
+        data.setdefault("weights", {})[today_str] = round(w_input, 1)
+        save_data(data)
+        st.success(f"Logged {w_input:.1f} kg")
+        st.rerun()
+    if lw:
+        diff = round(lw - START_WEIGHT, 1)
+        color = "#34d399" if diff <= 0 else "#fbbf24"
+        st.markdown(f'<div style="font-size:12px;color:{color};margin-top:4px;">Start: {START_WEIGHT} kg · Last: {lw} kg ({diff:+.1f})</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
     st.markdown("### 🔗 Quick links")
     st.markdown("[📋 DS + AWS Roadmap](https://www.notion.so/1e7a7b694ee0805a877cf71c3de56f5d)")
     st.markdown("[🔁 Weekly Review](https://www.notion.so/323a7b694ee0817e8253f196589fe26c)")

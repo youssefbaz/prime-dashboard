@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import streamlit; import pandas; import requests; print\\('OK'\\)\")",
+      "Bash(python -c ':*)",
+      "Bash(python -c \"import streamlit; print\\(streamlit.__version__\\)\")",
+      "Bash(streamlit run:*)",
+      "Bash(curl -s http://localhost:8501)",
+      "Bash(pkill -f \"streamlit run\")"
+    ]
+  }
+}
