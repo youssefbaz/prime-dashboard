@@ -379,6 +379,9 @@ with tab_planner:
                               index=0 if p.get("sex", "Male") == "Male" else 1)
             age    = st.number_input("Age", 16, 80, int(p.get("age", 25)))
             height = st.number_input("Height (cm)", 140, 220, int(p.get("height", 170)))
+            goal_type = st.selectbox("Goal", ["Lose weight", "Maintain weight", "Gain muscle"],
+                                     index=["Lose weight", "Maintain weight", "Gain muscle"].index(
+                                         p.get("goal_type", "Lose weight")))
             diet_start = st.date_input("Diet start date", value=datetime.date.today())
         with s2:
             weight      = st.number_input("Current weight (kg)", 40.0, 200.0,
@@ -424,7 +427,8 @@ with tab_planner:
         if st.button("Continue to Preferences", use_container_width=True):
             st.session_state.np_profile = dict(
                 sex=sex, age=age, height=height, weight=weight,
-                goal_weight=goal_weight, activity=activity, 
+                goal_weight=goal_weight, activity=activity,
+                goal_type=goal_type,
                 period_weeks=period_weeks, tdee=tdee,
                 target_cal=target_cal, protein_g=round(weight * 2.0),
                 diet_start=diet_start.isoformat(),
@@ -480,7 +484,7 @@ with tab_planner:
                         GEMINI_KEY,
                         profile["target_cal"],
                         profile["protein_g"],
-                        "goal_type" if "goal_type" in profile else "Health", # Fallback
+                        profile.get("goal_type", "Lose weight"),
                         selected_allergies,
                         diet,
                         custom_ex.strip(),

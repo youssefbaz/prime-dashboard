@@ -8,7 +8,12 @@ flash_data = data.get("flash_scores", {})
 st.markdown('<p class="page-title">Flashcards</p>', unsafe_allow_html=True)
 st.markdown('<p class="page-sub">Spaced repetition — SM-2 algorithm keeps hard cards coming back.</p>', unsafe_allow_html=True)
 
+prev_cat   = st.session_state.get("flash_cat_prev", "All")
 cat_filter = st.selectbox("Category", ["All", "ML", "AWS", "SQL"], key="flash_cat")
+if cat_filter != prev_cat:
+    st.session_state.flash_idx      = 0
+    st.session_state.flash_show     = False
+    st.session_state.flash_cat_prev = cat_filter
 cards      = FLASHCARDS if cat_filter == "All" else [c for c in FLASHCARDS if c["cat"] == cat_filter]
 
 due_indices = get_due_cards(flash_data, cards)

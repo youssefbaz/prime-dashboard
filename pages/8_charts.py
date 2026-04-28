@@ -81,6 +81,9 @@ while curr <= end_date:
     if curr.weekday() == 6: # End week column
         heatmap_html += '</div>'
     curr += datetime.timedelta(days=1)
+# Close any partial week column that didn't end on Sunday
+if end_date.weekday() != 6:
+    heatmap_html += '</div>'
 heatmap_html += '</div>'
 
 st.markdown(heatmap_html, unsafe_allow_html=True)

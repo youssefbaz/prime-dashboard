@@ -104,7 +104,7 @@ def get_missed():
 missed = get_missed()
 if missed:
     st.markdown(f"""<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:14px;padding:16px 22px;margin-bottom:20px;"><div style="font-size:15px;font-weight:700;color:#fca5a5;">⚠️ {len(missed)} day{"s" if len(missed)>1 else ""} without check-in</div><div style="font-size:13px;color:#f87171;margin-top:4px;">Complete your checklist to clear these.</div></div>""", unsafe_allow_html=True)
-    with st.expander(f"Review {len(missed)} missed day(s)"):
+    with st.expander(label=f"Review {len(missed)} missed day(s)"):
         if st.button(f"✅ Acknowledge all {len(missed)}", key="ack_all", use_container_width=True):
             data.setdefault("missed_acks", []).extend(m["str"] for m in missed)
             save_data(data); st.rerun()

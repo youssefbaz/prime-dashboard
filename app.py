@@ -178,6 +178,12 @@ p,span,label,div { font-family:'Inter',sans-serif !important; }
 .now-tag::before { content:"●"; margin-right:4px; animation:pulseDot 1.4s ease-in-out infinite; }
 .prime-footer { text-align:center; color:#334155; font-size:13px; padding:32px 0 16px; border-top:1px solid rgba(255,255,255,0.04); margin-top:40px; }
 
+/* Flashcard & quiz cards */
+.flash-card { background:var(--glass-bg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid var(--glass-border); border-radius:20px; padding:28px 32px; margin-bottom:20px; transition:border-color 0.3s var(--ease); }
+.flash-card:hover { border-color:var(--glass-border-hover); }
+.flash-q { font-size:20px; font-weight:700; color:#f1f5f9; line-height:1.5; font-family:'Outfit',sans-serif; }
+.flash-a { font-size:15px; color:#94a3b8; line-height:1.7; margin-top:20px; padding-top:20px; border-top:1px solid rgba(255,255,255,0.06); }
+
 .glow-a { position:fixed; top:-200px; right:-200px; width:700px; height:700px; background:radial-gradient(circle,rgba(99,102,241,0.08) 0%,transparent 70%); pointer-events:none; z-index:0; animation:drift 25s ease-in-out infinite; }
 .glow-b { position:fixed; bottom:-200px; left:-100px; width:600px; height:600px; background:radial-gradient(circle,rgba(236,72,153,0.06) 0%,transparent 70%); pointer-events:none; z-index:0; animation:drift 30s ease-in-out infinite reverse; }
 </style>

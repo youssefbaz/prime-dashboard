@@ -90,6 +90,7 @@ def get_default_model():
     return models[0] if models else "qwen3:14b"
 
 def ollama_generate(prompt, model=None, max_tokens=1500):
+    if not HAS_REQUESTS: return ""
     if not model: model = get_default_model()
     try:
         r = requests.post(f"{OLLAMA_URL}/api/generate", json={
@@ -161,12 +162,10 @@ def calc_xp(data):
     xp += len(data.get("jobs", [])) * XP_PER_JOB
     
     # Quiz XP
-    for q in data.get("quiz_history", {}).values():
-        xp += len(q) * XP_PER_QUIZ
-        
+    xp += len(data.get("quiz_history", {})) * XP_PER_QUIZ
+
     # Flashcard XP
-    for f in data.get("flash_scores", {}).values():
-        xp += len(f) * XP_PER_FLASHCARD
+    xp += len(data.get("flash_scores", {})) * XP_PER_FLASHCARD
         
     # Weight log XP
     xp += len(data.get("weights", {})) * XP_PER_WEIGHT
