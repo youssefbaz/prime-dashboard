@@ -2,7 +2,7 @@ import streamlit as st
 import datetime
 import pandas as pd
 import math
-from utils import load_data, get_week_info, CHECKLIST, GOAL_WEIGHT, PLAN_START
+from utils import load_data, get_week_info, CHECKLIST, GOAL_WEIGHT
 
 data = load_data()
 wi   = get_week_info()

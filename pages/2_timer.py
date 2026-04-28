@@ -3,6 +3,13 @@ import time
 import datetime
 from utils import load_data, save_data, get_week_info
 
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+
 # ── Zen Mode CSS ──────────────────────────────────────────
 st.markdown("""
 <style>
@@ -69,11 +76,55 @@ with r1:
     )
 with r2:
     st.markdown("""<div style="height:32px;"></div>""", unsafe_allow_html=True)
-    with st.expander("🎵 Zen Radio"):
-        st.markdown("""
-        <iframe width="100%" height="80" src="https://www.youtube.com/embed/jfKfPfyJRdk?si=D59X_xHn7W-f5C6C&controls=0&autoplay=1" 
-        title="Lofi Radio" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-        """, unsafe_allow_html=True)
+    with st.expander("🎵 Spotify Search"):
+        sp_cid = st.secrets.get("SPOTIFY_CLIENT_ID", "")
+        sp_cs  = st.secrets.get("SPOTIFY_CLIENT_SECRET", "")
+        if not sp_cid:
+            st.info("Add `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` to `.streamlit/secrets.toml` to enable search.")
+        else:
+            query = st.text_input("Search Spotify", placeholder="Song, artist, album…", key="sp_query", label_visibility="collapsed")
+            if query and HAS_REQUESTS:
+                import base64
+                if "sp_token" not in st.session_state:
+                    creds = base64.b64encode(f"{sp_cid}:{sp_cs}".encode()).decode()
+                    tok_r = requests.post(
+                        "https://accounts.spotify.com/api/token",
+                        headers={"Authorization": f"Basic {creds}"},
+                        data={"grant_type": "client_credentials"}, timeout=5,
+                    )
+                    st.session_state.sp_token = tok_r.json().get("access_token") if tok_r.status_code == 200 else None
+                token = st.session_state.get("sp_token")
+                if token:
+                    sr = requests.get(
+                        "https://api.spotify.com/v1/search",
+                        headers={"Authorization": f"Bearer {token}"},
+                        params={"q": query, "type": "track", "limit": 5}, timeout=5,
+                    )
+                    if sr.status_code == 401:
+                        del st.session_state["sp_token"]
+                        st.rerun()
+                    elif sr.status_code == 200:
+                        tracks = sr.json().get("tracks", {}).get("items", [])
+                        if tracks:
+                            for t in tracks:
+                                artists = ", ".join(a["name"] for a in t["artists"])
+                                c_info, c_btn = st.columns([4, 1])
+                                with c_info:
+                                    st.markdown(f'<div style="font-size:13px;color:#cbd5e1;padding:6px 0;"><strong>{t["name"]}</strong><br><span style="font-size:11px;color:#64748b;">{artists}</span></div>', unsafe_allow_html=True)
+                                with c_btn:
+                                    if st.button("▶", key=f"sp_{t['id']}", help="Play in sidebar"):
+                                        st.session_state.sp_playing_track = t["id"]
+                                        st.rerun()
+                        else:
+                            st.warning("No tracks found.")
+                    else:
+                        st.error(f"Spotify error {sr.status_code}")
+            # Show currently playing track
+            playing = st.session_state.get("sp_playing_track")
+            if playing:
+                if st.button("⏹ Stop Spotify", key="sp_stop", use_container_width=True):
+                    del st.session_state["sp_playing_track"]
+                    st.rerun()
 
 # Stats bar
 sc1, sc2, sc3 = st.columns(3)

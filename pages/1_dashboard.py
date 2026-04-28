@@ -3,7 +3,7 @@ import datetime
 from utils import (load_data, save_data, get_week_info, calc_streak,
                    get_daily_quote, TRAINING, CHECKLIST, SCHEDULE_TEMPLATE,
                    ML_BY_WEEK, AWS_BY_WEEK, PRACTICE_BY_WEEK, JOB_BY_WEEK,
-                   PLAN_START, PLAN_END, GOAL_WEIGHT, START_WEIGHT, calc_xp, get_level)
+                   GOAL_WEIGHT, START_WEIGHT, calc_xp, get_level)
 
 try:
     import requests
@@ -12,7 +12,7 @@ except ImportError:
     HAS_REQUESTS = False
 
 data     = load_data()
-wi       = get_week_info()
+wi       = get_week_info(data)
 today    = wi["today"]
 now      = wi["now"]
 day_name = wi["day_name"]
@@ -23,6 +23,8 @@ has_started = wi["has_started"]
 today_str   = wi["today_str"]
 pct         = wi["pct"]
 hour_now    = wi["hour_now"]
+plan_start  = wi["plan_start"]
+plan_weeks  = wi["plan_weeks"]
 streak      = calc_streak(data)
 is_sunday   = day_name == "Sun"
 
@@ -35,9 +37,6 @@ ws = data.get("weights", {})
 lw = ws[sorted(ws.keys(), reverse=True)[0]] if ws else None
 
 with st.sidebar:
-    st.markdown(f"### ⭐ Rank: Level {lvl}")
-    st.markdown(f"**{xp} Total XP**")
-    st.markdown("---")
     st.markdown("### ⚖️ Log weight")
     w_input = st.number_input("Weight (kg)", min_value=40.0, max_value=200.0,
                               value=float(lw if lw else START_WEIGHT), step=0.1,
@@ -59,7 +58,7 @@ with st.sidebar:
 
 # ── Helper ────────────────────────────────────────────────
 def get_today_tasks():
-    w = max(1, min(8, week_num))
+    w = max(1, min(plan_weeks, week_num))
     d = day_name
     if d == "Sun":
         return {"job":"Weekly Review","aws":"Review & Plan","ml":"Review Notes",
@@ -80,7 +79,7 @@ tasks = get_today_tasks()
 if has_started:
     st.markdown(f'<div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#818cf8;font-family:\'JetBrains Mono\',monospace;margin-bottom:6px;">Week {week_num} of 8 · Day {day_num} of {total_days}</div>', unsafe_allow_html=True)
 else:
-    st.markdown(f'<div style="font-size:11px;font-weight:700;letter-spacing:3px;color:#818cf8;font-family:\'JetBrains Mono\',monospace;margin-bottom:6px;">Plan starts in {(PLAN_START - today).days} days</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:11px;font-weight:700;letter-spacing:3px;color:#818cf8;font-family:\'JetBrains Mono\',monospace;margin-bottom:6px;">Plan starts in {(plan_start - today).days} days</div>', unsafe_allow_html=True)
 
 st.markdown(f'<p class="page-title">{today.strftime("%A, %B %d")}</p>', unsafe_allow_html=True)
 st.markdown(f'<p class="page-sub">{tasks["emoji"]} {tasks["vibe"]} &nbsp;·&nbsp; {now.strftime("%I:%M %p")}</p>', unsafe_allow_html=True)
@@ -93,7 +92,7 @@ st.markdown(f"""<div style="background:linear-gradient(135deg,rgba(99,102,241,0.
 def get_missed():
     missed = []
     if not has_started: return missed
-    c = PLAN_START
+    c = plan_start
     while c < today:
         dn = c.strftime("%a"); ds = c.isoformat()
         if dn != "Sun" and ds not in data.get("daily_checks", {}) and ds not in data.get("missed_acks", []):
@@ -104,7 +103,13 @@ def get_missed():
 missed = get_missed()
 if missed:
     st.markdown(f"""<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:14px;padding:16px 22px;margin-bottom:20px;"><div style="font-size:15px;font-weight:700;color:#fca5a5;">⚠️ {len(missed)} day{"s" if len(missed)>1 else ""} without check-in</div><div style="font-size:13px;color:#f87171;margin-top:4px;">Complete your checklist to clear these.</div></div>""", unsafe_allow_html=True)
-    with st.expander(label=f"Review {len(missed)} missed day(s)"):
+    if "show_missed" not in st.session_state:
+        st.session_state.show_missed = False
+    toggle_label = f"{'▲ Hide' if st.session_state.show_missed else '▼ Review'} {len(missed)} missed day(s)"
+    if st.button(toggle_label, key="toggle_missed", use_container_width=True):
+        st.session_state.show_missed = not st.session_state.show_missed
+        st.rerun()
+    if st.session_state.show_missed:
         if st.button(f"✅ Acknowledge all {len(missed)}", key="ack_all", use_container_width=True):
             data.setdefault("missed_acks", []).extend(m["str"] for m in missed)
             save_data(data); st.rerun()

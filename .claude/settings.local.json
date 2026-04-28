@@ -8,7 +8,8 @@
       "Bash(curl -s http://localhost:8501)",
       "Bash(pkill -f \"streamlit run\")",
       "Bash(python -m py_compile app.py utils.py pages/2_timer.py pages/8_charts.py)",
-      "Bash(python -m py_compile pages/1_dashboard.py)"
+      "Bash(python -m py_compile pages/1_dashboard.py)",
+      "Bash(pip show *)"
     ]
   }
 }

@@ -23,12 +23,14 @@ cover      = st.Page("pages/7_cover_letter.py",   title="Cover letter", icon="�
 charts     = st.Page("pages/8_charts.py",         title="Charts",       icon="📊")
 nutrition  = st.Page("pages/9_nutrition.py",      title="Nutrition",    icon="🍽️")
 
-from utils import load_data, calc_xp, get_level
+from utils import load_data, save_data, calc_xp, get_level, get_plan_config, _DEFAULT_PLAN_START, _DEFAULT_PLAN_WEEKS
+import streamlit.components.v1 as _components
 
 data = load_data()
 xp   = calc_xp(data)
 lvl, prog, req = get_level(xp)
 pct  = round((prog / req) * 100)
+plan_start, plan_weeks, plan_end = get_plan_config(data)
 
 pg = st.navigation({
     "Overview":  [dashboard],
@@ -38,19 +40,73 @@ pg = st.navigation({
     "Analytics": [charts],
 })
 
-# ── Sidebar Gamification ──────────────────────────────────
+# ── Persistent media players (rendered BEFORE pg.run so their
+#    React tree positions are stable across page navigations) ──
+_RADIO_HTML = """
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:transparent; font-family:'Inter',sans-serif; padding:4px 0; }
+  .lbl { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#64748b; margin-bottom:8px; }
+  select { width:100%; padding:7px 10px; margin-bottom:10px; background:rgba(255,255,255,0.04); color:#e2e8f0; border:1px solid rgba(255,255,255,0.1); border-radius:8px; font-size:13px; cursor:pointer; outline:none; }
+  .btns { display:flex; gap:6px; margin-bottom:8px; }
+  button { flex:1; padding:7px 4px; font-size:13px; font-weight:600; border:none; border-radius:8px; cursor:pointer; background:rgba(99,102,241,0.2); color:#a5b4fc; transition:background .2s; }
+  button:hover { background:rgba(99,102,241,0.4); }
+  #bp { background:rgba(52,211,153,0.15); color:#34d399; } #bp:hover { background:rgba(52,211,153,0.3); }
+  #bs { background:rgba(239,68,68,0.1);  color:#f87171; } #bs:hover { background:rgba(239,68,68,0.25); }
+  .st { font-size:11px; color:#475569; text-align:center; }
+  .st.on { color:#34d399; } .st.pa { color:#fbbf24; }
+</style>
+<div class="lbl">📻 Radio</div>
+<select id="sel" onchange="onChange()">
+  <option value="https://hitradio.ice.infomaniak.ch/hitradio-128.mp3">Hit Radio</option>
+  <option value="https://radiomars.ice.infomaniak.ch/radiomars-128.mp3">Radio Mars</option>
+  <option value="https://mfmradio.ice.infomaniak.ch/mfmradio-128.mp3">MFM Radio</option>
+  <option value="https://luxeradio.ice.infomaniak.ch/luxeradio-128.mp3">Luxe Radio</option>
+</select>
+<div class="btns">
+  <button id="bp" onclick="play()">▶ Play</button>
+  <button onclick="pause()">⏸ Pause</button>
+  <button id="bs" onclick="stop()">⏹ Stop</button>
+</div>
+<div class="st" id="st">Stopped</div>
+<audio id="a"></audio>
+<script>
+  var a=document.getElementById('a'), s=document.getElementById('st');
+  function set(t,c){s.textContent=t;s.className='st '+(c||'');}
+  function play(){a.src=document.getElementById('sel').value;a.play();set('● Playing','on');}
+  function pause(){a.pause();set('⏸ Paused','pa');}
+  function stop(){a.pause();a.src='';set('Stopped','');}
+  function onChange(){if(a.src&&!a.paused)play();}
+  a.onerror=function(){set('⚠ Stream error','');};
+</script>
+"""
+
+# Spotify: always render at same tree position. HTML changes only when
+# the user picks a new track (intentional reload); stable across navigation.
+_sp_track = st.session_state.get("sp_playing_track", "")
+_SP_HTML = (
+    f'<iframe src="https://open.spotify.com/embed/track/{_sp_track}'
+    f'?utm_source=generator&theme=0" width="100%" height="80" frameborder="0"'
+    f' allow="autoplay;clipboard-write;encrypted-media;picture-in-picture"></iframe>'
+    if _sp_track else "<div></div>"
+)
+
 with st.sidebar:
+    # ① XP bar
     st.markdown(f"""
-    <div style="padding:10px 0 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:6px;">
-            <span style="font-size:12px; font-weight:800; color:#818cf8; letter-spacing:1px; font-family:'JetBrains Mono';">LVL {lvl}</span>
-            <span style="font-size:11px; color:#64748b; font-family:'JetBrains Mono';">{prog}/{req} XP</span>
+    <div style="padding:15px 5px 25px; margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;white-space:nowrap;">
+            <span style="font-size:12px;font-weight:800;color:#818cf8;letter-spacing:1px;font-family:'JetBrains Mono';">LVL {lvl}</span>
+            <span style="font-size:11px;color:#64748b;font-family:'JetBrains Mono';opacity:.8;">{prog}/{req} XP</span>
         </div>
-        <div style="height:6px; background:rgba(255,255,255,0.05); border-radius:10px; overflow:hidden;">
-            <div style="width:{pct}%; height:100%; background:linear-gradient(90deg,#6366f1,#ec4899); border-radius:10px; transition:width 0.8s ease;"></div>
+        <div style="height:8px;background:rgba(255,255,255,0.1);border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.05);">
+            <div style="width:{pct}%;height:100%;background:linear-gradient(90deg,#6366f1,#ec4899);border-radius:10px;transition:width .8s ease;"></div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
+    # ② Radio player  (constant HTML → React never recreates iframe)
+    _components.html(_RADIO_HTML, height=148)
+    # ③ Spotify Now Playing  (same position every render → persists on navigation)
+    _components.html(_SP_HTML, height=84 if _sp_track else 2)
 
 # ─────────────────────────────────────────────────────────
 # GLOBAL CSS  (injected once here, available on all pages)
@@ -74,18 +130,37 @@ st.markdown("""
 @keyframes shimmer   { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
 
 .stApp { background: radial-gradient(circle at 50% -20%, #1a1a3a 0%, #0a0a0f 60%, #07070a 100%) !important; font-family:'Inter',sans-serif !important; }
-[data-testid="stSidebar"] { background:rgba(8,8,12,0.8) !important; backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); border-right:1px solid rgba(255,255,255,0.05) !important; }
-[data-testid="stSidebar"] * { color:#94a3b8 !important; }
-[data-testid="stSidebarNavLink"] { margin: 2px 0 !important; border-radius:10px !important; transition:all 0.3s var(--ease) !important; padding: 10px 14px !important; }
+[data-testid="stSidebar"] { background:rgba(15,15,28,0.97) !important; backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); border-right:1px solid rgba(255,255,255,0.12) !important; }
+[data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label { color:#94a3b8 !important; }
+
+/* Popover button styling */
+[data-testid="stPopover"] > button {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 12px !important;
+    color: #cbd5e1 !important;
+    margin-top: 10px !important;
+    margin-bottom: 20px !important;
+}
+[data-testid="stPopover"] > button:hover {
+    background: rgba(255,255,255,0.08) !important;
+    border-color: rgba(99,102,241,0.4) !important;
+}
+
+[data-testid="stSidebarNavLink"] { margin: 4px 0 !important; border-radius:10px !important; transition:all 0.3s var(--ease) !important; padding: 10px 14px !important; }
 [data-testid="stSidebarNavLink"]:hover { background:rgba(255,255,255,0.04) !important; transform:translateX(4px); }
 [data-testid="stSidebarNavLink"][aria-current="page"] { background:linear-gradient(90deg,rgba(99,102,241,0.15),rgba(99,102,241,0.02)) !important; box-shadow:inset 3px 0 0 #818cf8 !important; }
 [data-testid="stSidebarNavLink"][aria-current="page"] p { color:#e2e8f0 !important; font-weight:600 !important; }
 
 #MainMenu, footer, header { visibility:hidden; }
 .stDeployButton { display:none; }
+[data-testid="stSidebarCollapseButton"] { display:none !important; }
+[data-testid="collapsedControl"] { display:none !important; }
+[data-testid="stSidebar"][aria-expanded="false"] { transform:none !important; margin-left:0 !important; min-width:244px !important; }
 .block-container { max-width:1150px !important; padding-top:2.5rem !important; animation: fadeInUp 0.6s var(--ease); }
 h1,h2,h3,h4,h5,h6 { font-family:'Outfit',sans-serif !important; color:#f8fafc !important; font-weight:700 !important; }
 p,span,label,div { font-family:'Inter',sans-serif !important; }
+[data-testid="stIconMaterial"], [data-testid="stIconEmoji"] { font-family:'Material Symbols Rounded','Material Icons' !important; }
 ::selection { background:rgba(99,102,241,0.3); color:#fff; }
 
 /* Custom Scrollbar */
@@ -191,3 +266,45 @@ p,span,label,div { font-family:'Inter',sans-serif !important; }
 """, unsafe_allow_html=True)
 
 pg.run()
+
+# ── Sidebar Plan Settings (bottom) ───────────────────────
+with st.sidebar:
+    st.markdown("---")
+    with st.popover("⚙️ Plan Settings", use_container_width=True):
+        st.markdown("### 📅 Plan Timing")
+        new_start = st.date_input("Start date", value=plan_start, key="cfg_start")
+        new_weeks = st.number_input("Duration (weeks)", min_value=1, max_value=52,
+                                    value=plan_weeks, step=1, key="cfg_weeks")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Save plan", use_container_width=True, key="save_plan"):
+                data["plan_start"] = new_start.isoformat()
+                data["plan_weeks"] = int(new_weeks)
+                save_data(data)
+                st.success("Plan updated!")
+                st.rerun()
+        with col2:
+            if st.button("Today", help="Set start date to today", use_container_width=True):
+                data["plan_start"] = datetime.date.today().isoformat()
+                save_data(data)
+                st.rerun()
+        st.markdown("---")
+        st.markdown("### ⚠️ Reset Options")
+        if st.button("🗑️ Clear Today's Checklist", use_container_width=True):
+            today_str = datetime.date.today().isoformat()
+            if "daily_checks" in data and today_str in data["daily_checks"]:
+                del data["daily_checks"][today_str]
+                save_data(data)
+                st.warning("Today's checklist reset.")
+                st.rerun()
+        if st.button("🚨 Factory Reset Plan", use_container_width=True, help="Wipes all progress, weights, and notes!"):
+            data = {
+                "plan_start": new_start.isoformat(),
+                "plan_weeks": int(new_weeks),
+                "daily_checks": {}, "weights": {}, "notes": {}, "missed_acks": [],
+                "jobs": [], "quiz_history": {}, "flash_scores": {},
+                "cover_letters": [], "focus_sessions": []
+            }
+            save_data(data)
+            st.error("All data has been reset.")
+            st.rerun()

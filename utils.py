@@ -6,8 +6,10 @@ import streamlit as st
 # ─────────────────────────────────────────────────────────
 # PLAN CONFIG
 # ─────────────────────────────────────────────────────────
-PLAN_START   = datetime.date(2026, 3, 23)
-PLAN_END     = datetime.date(2026, 5, 18)
+_DEFAULT_PLAN_START = datetime.date(2026, 3, 23)
+_DEFAULT_PLAN_WEEKS = 8
+PLAN_START   = _DEFAULT_PLAN_START                                  # kept for backward compat
+PLAN_END     = _DEFAULT_PLAN_START + datetime.timedelta(weeks=_DEFAULT_PLAN_WEEKS)
 GOAL_WEIGHT  = 75.0
 START_WEIGHT = 86.5
 DATA_FILE    = "prime_data.json"
@@ -30,26 +32,46 @@ def save_data(d):
 # ─────────────────────────────────────────────────────────
 # DATE / WEEK HELPERS
 # ─────────────────────────────────────────────────────────
-def get_week_info():
+def get_plan_config(data=None):
+    """Return (plan_start, plan_weeks, plan_end) from saved data or defaults."""
+    if data is None:
+        data = load_data()
+    start_str = data.get("plan_start")
+    weeks = int(data.get("plan_weeks", _DEFAULT_PLAN_WEEKS))
+    if start_str:
+        try:
+            start = datetime.date.fromisoformat(start_str)
+        except ValueError:
+            start = _DEFAULT_PLAN_START
+    else:
+        start = _DEFAULT_PLAN_START
+    end = start + datetime.timedelta(weeks=weeks)
+    return start, weeks, end
+
+def get_week_info(data=None):
+    if data is None:
+        data = load_data()
+    plan_start, plan_weeks, plan_end = get_plan_config(data)
     today      = datetime.date.today()
     now        = datetime.datetime.now()
     day_name   = today.strftime("%a")
-    day_num    = (today - PLAN_START).days + 1
-    week_num   = max(1, min(8, (day_num - 1) // 7 + 1))
-    total_days = (PLAN_END - PLAN_START).days
-    has_started= today >= PLAN_START
+    day_num    = (today - plan_start).days + 1
+    total_days = (plan_end - plan_start).days
+    week_num   = max(1, min(plan_weeks, (day_num - 1) // 7 + 1))
+    has_started= today >= plan_start
     today_str  = today.isoformat()
     pct        = min(100, max(0, round((day_num / total_days) * 100))) if total_days > 0 else 0
     hour_now   = now.hour + now.minute / 60
     return dict(today=today, now=now, day_name=day_name, day_num=day_num,
                 week_num=week_num, total_days=total_days, has_started=has_started,
-                today_str=today_str, pct=pct, hour_now=hour_now)
+                today_str=today_str, pct=pct, hour_now=hour_now,
+                plan_start=plan_start, plan_end=plan_end, plan_weeks=plan_weeks)
 
 def calc_streak(data):
-    wi = get_week_info()
+    wi = get_week_info(data)
     streak = 0
     cd = wi["today"] - datetime.timedelta(days=1)
-    while cd >= PLAN_START:
+    while cd >= wi["plan_start"]:
         ds = cd.isoformat()
         if cd.strftime("%a") == "Sun" or ds in data.get("daily_checks", {}):
             streak += 1; cd -= datetime.timedelta(days=1)
