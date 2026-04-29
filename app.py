@@ -27,6 +27,7 @@ nutrition  = st.Page("pages/9_nutrition.py",      title="Nutrition",    icon="�
 habits     = st.Page("pages/10_habits.py",        title="Habits",       icon="🟩")
 goals      = st.Page("pages/11_goals.py",         title="Goals",        icon="🎯")
 plan_week  = st.Page("pages/12_plan_week.py",     title="Plan My Week", icon="🗓️")
+assistant  = st.Page("pages/13_assistant.py",     title="AI Assistant", icon="🤖")
 
 from utils import load_data, save_data, calc_xp, get_level, get_plan_config, _DEFAULT_PLAN_START, _DEFAULT_PLAN_WEEKS
 import streamlit.components.v1 as _components
@@ -44,6 +45,7 @@ pg = st.navigation({
     "Health":    [nutrition, habits],
     "Analytics": [charts],
     "Planning":  [goals, plan_week],
+    "Assistant": [assistant],
 })
 
 # ── Persistent media players (rendered BEFORE pg.run so their
