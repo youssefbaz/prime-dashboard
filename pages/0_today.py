@@ -138,32 +138,20 @@ border-radius:18px;padding:24px;text-align:center;margin-bottom:20px;">
 </div>
 """, unsafe_allow_html=True)
 
-    # ── Motivational quote ────────────────────────────────
-    st.markdown('<div class="sec-title">💬 Daily Quote</div>', unsafe_allow_html=True)
+    # ── Motivational quote (refreshes every 3 hours) ─────────
+    st.markdown('<div class="sec-title">💬 Quote</div>', unsafe_allow_html=True)
 
-    quote_key = f"ai_quote_{today_str}"
-    fallback_quote = QUOTES[today.timetuple().tm_yday % len(QUOTES)]
+    # Key changes every 3-hour block: 00-03, 03-06, ..., 21-24
+    block     = now.hour // 3
+    quote_key = f"ai_quote_{today_str}_{block}"
+    fallback_quote = QUOTES[(today.timetuple().tm_yday * 8 + block) % len(QUOTES)]
 
     if quote_key not in st.session_state:
-        st.session_state[quote_key] = fallback_quote
-
-    def render_quote(q):
-        text   = q["text"] if isinstance(q, dict) else q
-        author = q.get("author", "Claude AI") if isinstance(q, dict) else "Claude AI"
-        st.markdown(f"""
-<div style="background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(236,72,153,0.04));
-border:1px solid rgba(99,102,241,0.12);border-radius:14px;padding:18px 24px;margin-bottom:16px;">
-  <div style="font-size:16px;color:#cbd5e1;font-style:italic;line-height:1.7;">"{text}"</div>
-  <div style="font-size:12px;color:#818cf8;margin-top:10px;font-family:'JetBrains Mono',monospace;">— {author}</div>
-</div>""", unsafe_allow_html=True)
-
-    render_quote(st.session_state[quote_key])
-
-    if st.button("🔄 Regenerate quote with AI", use_container_width=True, key="regen_quote"):
+        fetched = False
         try:
             gemini_key = st.secrets.get("GEMINI_API_KEY", "")
             if gemini_key and HAS_REQUESTS:
-                prompt = f"""Generate ONE short motivational quote (max 25 words) suitable for a high-performer
+                prompt = f"""Generate ONE short motivational quote (max 25 words) for a high-performer
 on a {vibe} ({today.strftime('%A')}). Be original and punchy.
 Return ONLY valid JSON: {{"text": "...", "author": "..."}} where author is the real person or 'Unknown'."""
                 r = requests.post(
@@ -171,22 +159,27 @@ Return ONLY valid JSON: {{"text": "...", "author": "..."}} where author is the r
                     headers={"Content-Type": "application/json"},
                     json={"contents": [{"parts": [{"text": prompt}]}],
                           "generationConfig": {"maxOutputTokens": 120, "temperature": 0.9}},
-                    timeout=15,
+                    timeout=10,
                 )
                 if r.status_code == 200:
                     raw = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    s   = raw.find("{"); e = raw.rfind("}") + 1
-                    q   = json.loads(raw[s:e])
-                    st.session_state[quote_key] = q
-                    st.rerun()
-            else:
-                import random
-                st.session_state[quote_key] = random.choice(QUOTES)
-                st.rerun()
+                    s, e = raw.find("{"), raw.rfind("}") + 1
+                    st.session_state[quote_key] = json.loads(raw[s:e])
+                    fetched = True
         except Exception:
-            import random
-            st.session_state[quote_key] = random.choice(QUOTES)
-            st.rerun()
+            pass
+        if not fetched:
+            st.session_state[quote_key] = fallback_quote
+
+    q      = st.session_state[quote_key]
+    text   = q["text"] if isinstance(q, dict) else q
+    author = q.get("author", "") if isinstance(q, dict) else ""
+    st.markdown(f"""
+<div style="background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(236,72,153,0.04));
+border:1px solid rgba(99,102,241,0.12);border-radius:14px;padding:18px 24px;margin-bottom:16px;">
+  <div style="font-size:16px;color:#cbd5e1;font-style:italic;line-height:1.7;">"{text}"</div>
+  <div style="font-size:12px;color:#818cf8;margin-top:10px;font-family:'JetBrains Mono',monospace;">— {author}</div>
+</div>""", unsafe_allow_html=True)
 
     # ── Top 3 priorities ─────────────────────────────────
     st.markdown('<div class="sec-title">🎯 Today\'s Top 3 Priorities</div>', unsafe_allow_html=True)
