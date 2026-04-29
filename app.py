@@ -10,10 +10,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
 # ─────────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────────
-dashboard  = st.Page("pages/1_dashboard.py",     title="Dashboard",    icon="📋", default=True)
+today_page = st.Page("pages/0_today.py",          title="Today",        icon="🌅", default=True)
+dashboard  = st.Page("pages/1_dashboard.py",      title="Dashboard",    icon="📋")
 timer      = st.Page("pages/2_timer.py",          title="Timer",        icon="⏱️")
 week       = st.Page("pages/3_week.py",           title="Week view",    icon="📅")
 flashcards = st.Page("pages/4_flashcards.py",     title="Flashcards",   icon="🃏")
@@ -23,6 +25,8 @@ cover      = st.Page("pages/7_cover_letter.py",   title="Cover letter", icon="�
 charts     = st.Page("pages/8_charts.py",         title="Charts",       icon="📊")
 nutrition  = st.Page("pages/9_nutrition.py",      title="Nutrition",    icon="🍽️")
 habits     = st.Page("pages/10_habits.py",        title="Habits",       icon="🟩")
+goals      = st.Page("pages/11_goals.py",         title="Goals",        icon="🎯")
+plan_week  = st.Page("pages/12_plan_week.py",     title="Plan My Week", icon="🗓️")
 
 from utils import load_data, save_data, calc_xp, get_level, get_plan_config, _DEFAULT_PLAN_START, _DEFAULT_PLAN_WEEKS
 import streamlit.components.v1 as _components
@@ -34,11 +38,12 @@ pct  = round((prog / req) * 100)
 plan_start, plan_weeks, plan_end = get_plan_config(data)
 
 pg = st.navigation({
-    "Overview":  [dashboard],
+    "Overview":  [today_page, dashboard],
     "Study":     [timer, week, flashcards, quiz],
     "Career":    [jobs, cover],
     "Health":    [nutrition, habits],
     "Analytics": [charts],
+    "Planning":  [goals, plan_week],
 })
 
 # ── Persistent media players (rendered BEFORE pg.run so their
@@ -172,19 +177,41 @@ p,span,label,div { font-family:'Inter',sans-serif !important; }
 ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:99px; }
 ::-webkit-scrollbar-thumb:hover { background:rgba(99,102,241,0.4); }
 
-.stButton>button { 
-    background: linear-gradient(135deg,#6366f1,#a855f7) !important; 
-    color:#fff !important; 
-    border:none !important; 
-    border-radius:12px !important; 
-    font-family:'Outfit' !important; 
-    font-weight:600 !important; 
-    padding:12px 28px !important; 
-    transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important; 
-    box-shadow:0 10px 15px -3px rgba(99,102,241,0.3) !important;
+/* ── Primary buttons ── */
+.stButton>button {
+    background: linear-gradient(135deg,#6366f1,#a855f7) !important;
+    color:#fff !important;
+    border:none !important;
+    border-radius:12px !important;
+    font-family:'Outfit' !important;
+    font-weight:600 !important;
+    padding:10px 24px !important;
+    letter-spacing:0.3px !important;
+    transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    box-shadow:0 4px 15px rgba(99,102,241,0.25) !important;
 }
-.stButton>button:hover { transform:translateY(-3px) scale(1.02); box-shadow:0 20px 25px -5px rgba(99,102,241,0.4) !important; filter:brightness(1.15); }
-.stButton>button:active { transform:translateY(0); }
+.stButton>button:hover { transform:translateY(-2px) scale(1.01) !important; box-shadow:0 8px 25px rgba(99,102,241,0.4) !important; filter:brightness(1.1) !important; }
+.stButton>button:active { transform:translateY(0) !important; }
+
+/* ── Secondary / outline buttons (use type="secondary") ── */
+[data-testid="baseButton-secondary"] {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    color: #cbd5e1 !important;
+    box-shadow: none !important;
+}
+[data-testid="baseButton-secondary"]:hover {
+    background: rgba(255,255,255,0.07) !important;
+    border-color: rgba(129,140,248,0.35) !important;
+    color: #e2e8f0 !important;
+    transform: translateY(-1px) !important;
+}
+
+/* ── Danger / destructive visual (error context) ── */
+[data-testid="stButton"] button[kind="primary"].danger {
+    background: linear-gradient(135deg,#ef4444,#dc2626) !important;
+    box-shadow: 0 4px 15px rgba(239,68,68,0.3) !important;
+}
 
 .stNumberInput input,.stTextArea textarea,.stTextInput input { 
     background:rgba(255,255,255,0.03) !important; 
@@ -264,6 +291,63 @@ p,span,label,div { font-family:'Inter',sans-serif !important; }
 
 .glow-a { position:fixed; top:-200px; right:-200px; width:700px; height:700px; background:radial-gradient(circle,rgba(99,102,241,0.08) 0%,transparent 70%); pointer-events:none; z-index:0; animation:drift 25s ease-in-out infinite; }
 .glow-b { position:fixed; bottom:-200px; left:-100px; width:600px; height:600px; background:radial-gradient(circle,rgba(236,72,153,0.06) 0%,transparent 70%); pointer-events:none; z-index:0; animation:drift 30s ease-in-out infinite reverse; }
+
+/* ── Tabs ── */
+[data-testid="stTabs"] [data-baseweb="tab-list"] { background:rgba(255,255,255,0.02) !important; border-radius:12px !important; padding:4px !important; border:1px solid rgba(255,255,255,0.06) !important; }
+[data-testid="stTabs"] [data-baseweb="tab"] { border-radius:8px !important; color:#64748b !important; font-weight:600 !important; font-family:'Outfit',sans-serif !important; transition:all 0.2s ease !important; }
+[data-testid="stTabs"] [aria-selected="true"] { background:rgba(99,102,241,0.2) !important; color:#a5b4fc !important; }
+[data-testid="stTabs"] [data-baseweb="tab-border"] { display:none !important; }
+
+/* ── Selectbox, slider ── */
+[data-testid="stSelectbox"] > div { border-radius:12px !important; }
+[data-testid="stSelectbox"] [data-baseweb="select"] > div { background:rgba(255,255,255,0.03) !important; border:1px solid rgba(255,255,255,0.06) !important; border-radius:12px !important; color:#f1f5f9 !important; }
+[data-testid="stSelectbox"] [data-baseweb="select"] > div:hover { border-color:rgba(129,140,248,0.35) !important; }
+[data-testid="stSlider"] [data-baseweb="slider"] [role="slider"] { background:linear-gradient(135deg,#6366f1,#a855f7) !important; border:2px solid #fff !important; box-shadow:0 0 10px rgba(99,102,241,0.5) !important; }
+[data-testid="stSlider"] [data-testid="stTickBar"] + div div { background:linear-gradient(90deg,#6366f1,#a855f7) !important; }
+
+/* ── Metrics ── */
+[data-testid="metric-container"] { background:rgba(255,255,255,0.02) !important; border:1px solid rgba(255,255,255,0.06) !important; border-radius:16px !important; padding:16px !important; }
+
+/* ── Expander ── */
+[data-testid="stExpander"] details { background:rgba(255,255,255,0.02) !important; border:1px solid rgba(255,255,255,0.06) !important; border-radius:14px !important; }
+[data-testid="stExpander"] summary { color:#94a3b8 !important; font-weight:600 !important; }
+
+/* ── Checkbox ── */
+[data-testid="stCheckbox"] { padding:6px 0 !important; }
+[data-testid="stCheckbox"] label { color:#cbd5e1 !important; font-size:14px !important; }
+
+/* ── Info / success / warning / error boxes ── */
+[data-testid="stAlert"] { border-radius:14px !important; border-width:1px !important; }
+
+/* ── Form ── */
+[data-testid="stForm"] { background:rgba(255,255,255,0.02) !important; border:1px solid rgba(255,255,255,0.06) !important; border-radius:16px !important; padding:20px !important; }
+
+/* ── Divider ── */
+hr { border:none !important; border-top:1px solid rgba(255,255,255,0.06) !important; margin:20px 0 !important; }
+
+/* ── Consistent section card wrapper ── */
+.section-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 18px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+/* ── Pill tags ── */
+.pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 99px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Sidebar section headers ── */
+[data-testid="stSidebar"] h3 { color:#818cf8 !important; font-size:13px !important; font-family:'JetBrains Mono',monospace !important; text-transform:uppercase !important; letter-spacing:1.5px !important; margin:16px 0 10px !important; }
 </style>
 <div class="glow-a"></div><div class="glow-b"></div>
 """, unsafe_allow_html=True)
@@ -293,6 +377,7 @@ with st.sidebar:
                 st.rerun()
         st.markdown("---")
         st.markdown("### ⚠️ Reset Options")
+        # RESET FIX applied here
         if st.button("🗑️ Clear Today's Checklist", use_container_width=True):
             today_str = datetime.date.today().isoformat()
             if "daily_checks" in data and today_str in data["daily_checks"]:
@@ -300,14 +385,37 @@ with st.sidebar:
                 save_data(data)
                 st.warning("Today's checklist reset.")
                 st.rerun()
-        if st.button("🚨 Factory Reset Plan", use_container_width=True, help="Wipes all progress, weights, and notes!"):
-            data = {
-                "plan_start": new_start.isoformat(),
-                "plan_weeks": int(new_weeks),
-                "daily_checks": {}, "weights": {}, "notes": {}, "missed_acks": [],
-                "jobs": [], "quiz_history": {}, "flash_scores": {},
-                "cover_letters": [], "focus_sessions": []
-            }
-            save_data(data)
-            st.error("All data has been reset.")
-            st.rerun()
+
+        # RESET FIX applied here — confirmation step before destructive factory reset
+        if "confirm_reset" not in st.session_state:
+            st.session_state.confirm_reset = False
+
+        if not st.session_state.confirm_reset:
+            if st.button("🚨 Factory Reset Plan", use_container_width=True,
+                         help="Wipes ALL progress, weights, notes, habits, and history!"):
+                st.session_state.confirm_reset = True
+                st.rerun()
+        else:
+            st.error("⚠️ This will erase ALL data permanently. Are you sure?")
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                if st.button("✅ Yes, reset everything", use_container_width=True, key="confirm_yes"):
+                    # RESET FIX applied here — clears all keys including habit_logs, goals, weekly_plans
+                    data = {
+                        "plan_start": new_start.isoformat(),
+                        "plan_weeks": int(new_weeks),
+                        "daily_checks": {}, "weights": {}, "notes": {}, "missed_acks": [],
+                        "jobs": [], "quiz_history": {}, "flash_scores": {},
+                        "cover_letters": [], "focus_sessions": [],
+                        "habits": [], "habit_logs": {},
+                        "goals": [], "weekly_plans": [],
+                        "today_priorities": [],
+                    }
+                    save_data(data)
+                    st.session_state.confirm_reset = False
+                    st.error("All data has been reset.")
+                    st.rerun()
+            with cc2:
+                if st.button("❌ Cancel", use_container_width=True, key="confirm_no"):
+                    st.session_state.confirm_reset = False
+                    st.rerun()
