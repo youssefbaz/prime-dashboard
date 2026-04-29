@@ -48,12 +48,24 @@ col_left, col_right = st.columns([5, 4], gap="large")
 with col_left:
 
     # ── Weather widget ────────────────────────────────────
-    st.markdown('<div class="sec-title">🌤️ Weather · Paris</div>', unsafe_allow_html=True)
+    city = data.get("weather_city", "Paris")
+    st.markdown(f'<div class="sec-title">🌤️ Weather · {city}</div>', unsafe_allow_html=True)
 
-    weather_key = f"weather_{today_str}"
+    with st.expander("📍 Change city"):
+        with st.form("city_form"):
+            new_city = st.text_input("City name", value=city)
+            if st.form_submit_button("Update"):
+                if new_city.strip() and new_city.strip() != city:
+                    data["weather_city"] = new_city.strip()
+                    save_data(data)
+                    for k in [k for k in st.session_state if k.startswith("weather_")]:
+                        del st.session_state[k]
+                    st.rerun()
+
+    weather_key = f"weather_{today_str}_{city}"
     if weather_key not in st.session_state and HAS_REQUESTS:
         try:
-            r = requests.get("https://wttr.in/Paris?format=j1", timeout=8)
+            r = requests.get(f"https://wttr.in/{city}?format=j1", timeout=8)
             if r.status_code == 200:
                 st.session_state[weather_key] = r.json()
         except Exception:
@@ -155,7 +167,7 @@ border-radius:18px;padding:24px;text-align:center;margin-bottom:20px;">
 on a {vibe} ({today.strftime('%A')}). Be original and punchy.
 Return ONLY valid JSON: {{"text": "...", "author": "..."}} where author is the real person or 'Unknown'."""
                 r = requests.post(
-                    f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={gemini_key}",
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
                     headers={"Content-Type": "application/json"},
                     json={"contents": [{"parts": [{"text": prompt}]}],
                           "generationConfig": {"maxOutputTokens": 120, "temperature": 0.9}},

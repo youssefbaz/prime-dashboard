@@ -19,7 +19,7 @@ cards      = FLASHCARDS if cat_filter == "All" else [c for c in FLASHCARDS if c[
 due_indices = get_due_cards(flash_data, cards)
 total_due   = len([i for i in due_indices if str(i) in flash_data])
 total_new   = len([i for i in due_indices if str(i) not in flash_data])
-mastered    = len([k for k in flash_data if flash_data[k].get("reps", 0) >= 3])
+mastered    = sum(1 for i in range(len(cards)) if flash_data.get(str(i), {}).get("reps", 0) >= 3)
 
 # Stats row
 sc1, sc2, sc3 = st.columns(3)

@@ -238,7 +238,7 @@ if st.session_state.get("timer_running", False) and total_sec > 0:
 
     if st.session_state.timer_seconds <= 0:
         st.session_state.timer_running = False
-        completed_min = round(initial / 60)
+        completed_min = max(1, round(initial / 60))
 
         # Save completed session
         data.setdefault("focus_sessions", []).append({

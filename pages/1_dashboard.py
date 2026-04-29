@@ -146,49 +146,51 @@ if now.hour >= 20:
     
     # Check if reflection already generated today
     if f"reflection_{today_str}" not in st.session_state:
-        # Prepare data for Gemini
-        tc = data.get("daily_checks", {}).get(today_str, {})
-        done_count = sum(1 for v in tc.values() if v)
-        focus_ss = data.get("focus_sessions", [])
-        today_focus = sum(s.get("minutes",0) for s in focus_ss if s.get("date") == today_str)
-        
-        prompt = f"""You are 'Prime Coach', a high-performance mentor. It's the end of the day.
+        _reflection_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+        if not _reflection_key:
+            st.info("Add `ANTHROPIC_API_KEY` to `.streamlit/secrets.toml` to unlock Evening Reflection.")
+        else:
+            _tc_ref = data.get("daily_checks", {}).get(today_str, {})
+            done_count  = sum(1 for v in _tc_ref.values() if v)
+            _focus_ref  = data.get("focus_sessions", [])
+            today_focus = sum(s.get("minutes", 0) for s in _focus_ref if s.get("date") == today_str)
+
+            prompt = f"""You are 'Prime Coach', a high-performance mentor. It's the end of the day.
 Summary of today:
 - Tasks completed: {done_count} out of {len(CHECKLIST)}
 - Focus time: {today_focus} minutes
 - Vibe: {tasks['vibe']}
 
-Write a 3-sentence motivational debrief. 
+Write a 3-sentence motivational debrief.
 1st sentence: Acknowledge the effort (be direct).
 2nd sentence: One specific piece of advice based on the progress.
 3rd sentence: A powerful closing for tomorrow.
 Be concise, elite, and slightly stoic."""
 
-        if st.button("Generate Today's Reflection", use_container_width=True):
-            try:
-                CLAUDE_KEY = st.secrets.get("ANTHROPIC_API_KEY", "")
-                r = requests.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "Content-Type": "application/json",
-                        "x-api-key": CLAUDE_KEY,
-                        "anthropic-version": "2023-06-01",
-                    },
-                    json={
-                        "model": "claude-haiku-4-5-20251001",
-                        "max_tokens": 200,
-                        "messages": [{"role": "user", "content": prompt}],
-                    },
-                    timeout=15,
-                )
-                if r.status_code == 200:
-                    text = r.json()["content"][0]["text"]
-                    st.session_state[f"reflection_{today_str}"] = text
-                    st.rerun()
-                else:
-                    st.error(f"Coach is busy. (Error {r.status_code})")
-            except:
-                st.error("Could not reach the coach.")
+            if st.button("Generate Today's Reflection", use_container_width=True):
+                try:
+                    r = requests.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "Content-Type": "application/json",
+                            "x-api-key": _reflection_key,
+                            "anthropic-version": "2023-06-01",
+                        },
+                        json={
+                            "model": "claude-haiku-4-5-20251001",
+                            "max_tokens": 200,
+                            "messages": [{"role": "user", "content": prompt}],
+                        },
+                        timeout=15,
+                    )
+                    if r.status_code == 200:
+                        text = r.json()["content"][0]["text"]
+                        st.session_state[f"reflection_{today_str}"] = text
+                        st.rerun()
+                    else:
+                        st.error(f"Coach is busy. (Error {r.status_code})")
+                except Exception:
+                    st.error("Could not reach the coach.")
     
     if f"reflection_{today_str}" in st.session_state:
         st.markdown(f"""
@@ -268,15 +270,20 @@ with col_sched:
 
 with col_check:
     st.markdown('<div class="sec-title">Checklist</div>', unsafe_allow_html=True)
+    ck_changed = False
     for i, item in enumerate(CHECKLIST):
-        st.checkbox(item, value=tc.get(str(i), False), key=f"ck_{i}")
+        prev = tc.get(str(i), False)
+        val  = st.checkbox(item, value=prev, key=f"ck_{i}")
+        if val != prev:
+            ck_changed = True
+    if ck_changed:
+        cks = {str(i): st.session_state.get(f"ck_{i}", False) for i in range(len(CHECKLIST))}
+        data.setdefault("daily_checks", {})[today_str] = cks
+        save_data(data)
+        st.rerun()
     if cp == 100:
         st.balloons()
         st.success("🏆 All tasks completed!")
-    if st.button("💾 Save progress", use_container_width=True, type="primary"):
-        cks = {str(i): st.session_state.get(f"ck_{i}", False) for i in range(len(CHECKLIST))}
-        data.setdefault("daily_checks", {})[today_str] = cks
-        save_data(data); st.success("Progress saved! ✅")
 
 # ── Pinned goals (from Goals page) ───────────────────────
 pinned_goals = [g for g in data.get("goals", []) if g.get("pinned") and not g.get("completed")]

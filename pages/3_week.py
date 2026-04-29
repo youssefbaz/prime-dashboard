@@ -5,10 +5,10 @@ from utils import (get_week_info, ML_BY_WEEK, AWS_BY_WEEK,
 wi       = get_week_info()
 week_num = wi["week_num"]
 day_name = wi["day_name"]
-w        = max(1, min(8, week_num))
+w        = max(1, min(wi["plan_weeks"], week_num))
 
 st.markdown('<p class="page-title">Week view</p>', unsafe_allow_html=True)
-st.markdown(f'<p class="page-sub">Week {week_num} of 8 — your full schedule at a glance.</p>', unsafe_allow_html=True)
+st.markdown(f'<p class="page-sub">Week {week_num} of {wi["plan_weeks"]} — your full schedule at a glance.</p>', unsafe_allow_html=True)
 
 # Extra CSS for week view cards
 st.markdown("""
@@ -91,7 +91,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Week selector
-selected_week = st.slider("View week", 1, 8, week_num, key="week_sel")
+selected_week = st.slider("View week", 1, wi["plan_weeks"], week_num, key="week_sel")
 w = selected_week
 
 days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
