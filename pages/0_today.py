@@ -48,12 +48,12 @@ col_left, col_right = st.columns([5, 4], gap="large")
 with col_left:
 
     # ── Weather widget ────────────────────────────────────
-    st.markdown('<div class="sec-title">🌤️ Weather · Casablanca</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">🌤️ Weather · Paris</div>', unsafe_allow_html=True)
 
     weather_key = f"weather_{today_str}"
     if weather_key not in st.session_state and HAS_REQUESTS:
         try:
-            r = requests.get("https://wttr.in/Casablanca?format=j1", timeout=8)
+            r = requests.get("https://wttr.in/Paris?format=j1", timeout=8)
             if r.status_code == 200:
                 st.session_state[weather_key] = r.json()
         except Exception:
