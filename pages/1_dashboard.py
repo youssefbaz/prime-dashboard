@@ -166,11 +166,23 @@ Be concise, elite, and slightly stoic."""
 
         if st.button("Generate Today's Reflection", use_container_width=True):
             try:
-                GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
-                url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-                r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
+                CLAUDE_KEY = st.secrets.get("ANTHROPIC_API_KEY", "")
+                r = requests.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-api-key": CLAUDE_KEY,
+                        "anthropic-version": "2023-06-01",
+                    },
+                    json={
+                        "model": "claude-haiku-4-5-20251001",
+                        "max_tokens": 200,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                    timeout=15,
+                )
                 if r.status_code == 200:
-                    text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    text = r.json()["content"][0]["text"]
                     st.session_state[f"reflection_{today_str}"] = text
                     st.rerun()
                 else:

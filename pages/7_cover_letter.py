@@ -21,26 +21,27 @@ st.markdown('<p class="page-sub">Upload your resume + paste a job offer — get 
 
 ollama_ok = ollama_available()
 
-def gemini_generate(prompt, api_key, max_tokens=2000):
-    """Generate text via Gemini API."""
-    if not api_key or not HAS_REQUESTS:
+def claude_generate(prompt, max_tokens=2000):
+    """Generate text via Claude API."""
+    if not CLAUDE_KEY or not HAS_REQUESTS:
         return ""
     try:
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
         r = requests.post(
-            url,
-            headers={"Content-Type": "application/json"},
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": CLAUDE_KEY,
+                "anthropic-version": "2023-06-01",
+            },
             json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.7,
-                    "maxOutputTokens": max_tokens,
-                }
+                "model": "claude-sonnet-4-6",
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
             },
             timeout=60,
         )
         if r.status_code == 200:
-            return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            return r.json()["content"][0]["text"]
         else:
             return f"API error {r.status_code}: {r.text[:200]}"
     except Exception as e:
@@ -48,9 +49,9 @@ def gemini_generate(prompt, api_key, max_tokens=2000):
 
 # ── AI backend selection ──────────────────────────────────
 try:
-    GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
+    CLAUDE_KEY = st.secrets["ANTHROPIC_API_KEY"]
 except Exception:
-    GEMINI_KEY = ""
+    CLAUDE_KEY = ""
 
 if ollama_ok:
     models        = ollama_models()
@@ -61,28 +62,28 @@ if ollama_ok:
     border-radius:10px;padding:12px 18px;margin-bottom:20px;">
       <span style="font-size:13px;color:#34d399;font-weight:600;">🟢 Ollama connected — {default_model}</span>
     </div>""", unsafe_allow_html=True)
-elif GEMINI_KEY:
-    ai_backend = "gemini"
+elif CLAUDE_KEY:
+    ai_backend = "claude"
     st.markdown("""
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);
     border-radius:10px;padding:12px 18px;margin-bottom:20px;">
-      <span style="font-size:13px;color:#a5b4fc;font-weight:600;">🟣 Gemini API — Ollama offline, using Gemini as fallback</span>
+      <span style="font-size:13px;color:#a5b4fc;font-weight:600;">🟣 Claude API — Ollama offline, using Claude as fallback</span>
     </div>""", unsafe_allow_html=True)
 else:
     st.markdown("""
     <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);
     border-radius:10px;padding:14px 18px;margin-bottom:16px;">
       <span style="font-size:13px;color:#fca5a5;font-weight:600;">🔴 No AI backend available</span>
-      <div style="font-size:12px;color:#7f1d1d;margin-top:4px;">Run <code>ollama serve</code> or add GEMINI_API_KEY to secrets.</div>
+      <div style="font-size:12px;color:#7f1d1d;margin-top:4px;">Run <code>ollama serve</code> or add ANTHROPIC_API_KEY to secrets.</div>
     </div>""", unsafe_allow_html=True)
     st.stop()
 
 def generate_text(prompt, model=None, max_tokens=2000):
-    """Route to Ollama or Gemini depending on what's available."""
+    """Route to Ollama or Claude depending on what's available."""
     if ai_backend == "ollama":
         return ollama_generate(prompt, model, max_tokens)
     else:
-        return gemini_generate(prompt, GEMINI_KEY, max_tokens)
+        return claude_generate(prompt, max_tokens)
 
 # ── Input columns ─────────────────────────────────────────
 cl1, cl2 = st.columns(2)
@@ -147,7 +148,7 @@ Tone: {cl_tone}.
 
 Guidelines: match skills to job requirements, highlight relevant projects, 3–4 paragraphs (~350 words),
 strong opening hook, confident closing. Be specific — no generic sentences. Write in {lang}."""
-            backend_label = cl_model if ai_backend == "ollama" else "Gemini"
+            backend_label = cl_model if ai_backend == "ollama" else "Claude"
             with st.spinner(f"Writing in {lang} with {backend_label}…"):
                 letter = generate_text(prompt, cl_model, 2000)
             if letter:

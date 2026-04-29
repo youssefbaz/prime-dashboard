@@ -147,7 +147,9 @@ st.markdown("""
     border-color: rgba(99,102,241,0.4) !important;
 }
 
-[data-testid="stSidebarNavLink"] { margin: 4px 0 !important; border-radius:10px !important; transition:all 0.3s var(--ease) !important; padding: 10px 14px !important; }
+[data-testid="stSidebarNavLink"] { margin: 2px 0 !important; border-radius:10px !important; transition:all 0.3s var(--ease) !important; padding: 10px 14px !important; }
+[data-testid="stSidebarNavSeparator"] { margin: 6px 0 !important; }
+[data-testid="stSidebarNavItems"] { gap: 0 !important; padding: 0 !important; }
 [data-testid="stSidebarNavLink"]:hover { background:rgba(255,255,255,0.04) !important; transform:translateX(4px); }
 [data-testid="stSidebarNavLink"][aria-current="page"] { background:linear-gradient(90deg,rgba(99,102,241,0.15),rgba(99,102,241,0.02)) !important; box-shadow:inset 3px 0 0 #818cf8 !important; }
 [data-testid="stSidebarNavLink"][aria-current="page"] p { color:#e2e8f0 !important; font-weight:600 !important; }
