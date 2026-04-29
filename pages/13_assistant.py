@@ -134,7 +134,11 @@ def call_ai(messages, model):
             },
             timeout=60,
         )
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"] if r.status_code == 200 else f"Error {r.status_code}: {r.text[:200]}"
+        if r.status_code == 200:
+            return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        if r.status_code == 429:
+            return "⚠️ Gemini quota exceeded. Switch to **Claude** or **Ollama** in the model selector above, or upgrade your Google AI plan at [ai.google.dev](https://ai.google.dev)."
+        return f"Error {r.status_code}: {r.text[:200]}"
 
     if provider == "ollama":
         # Build a flat prompt for Ollama (no native multi-turn API in basic generate)
