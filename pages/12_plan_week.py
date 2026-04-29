@@ -2,6 +2,7 @@ import streamlit as st
 import datetime
 import json
 import re
+import html as _html
 from utils import load_data, save_data, get_week_info
 
 try:
@@ -166,7 +167,7 @@ Rules:
     plan = st.session_state.get("pw_current_plan")
     if plan:
         st.markdown("")
-        week_theme = plan.get("week_theme", "")
+        week_theme = _html.escape(plan.get("week_theme", ""))
         if week_theme:
             st.markdown(f"""
 <div style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(168,85,247,0.05));
@@ -181,7 +182,7 @@ border:1px solid rgba(99,102,241,0.15);border-radius:14px;padding:16px 22px;marg
             goals_html = "".join(
                 f'<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);">'
                 f'<span style="font-size:14px;">{"🥇" if i==0 else "🥈" if i==1 else "🥉"}</span>'
-                f'<span style="font-size:14px;color:#e2e8f0;font-weight:500;">{g}</span>'
+                f'<span style="font-size:14px;color:#e2e8f0;font-weight:500;">{_html.escape(str(g))}</span>'
                 f'</div>'
                 for i, g in enumerate(weekly_goals[:3])
             )
@@ -201,29 +202,36 @@ border-radius:14px;padding:16px 20px;margin-bottom:20px;">
         }
         priority_dots = {"high": "🔴", "medium": "🟡", "low": "🟢"}
 
+        def e(s):
+            """HTML-escape a string from AI output."""
+            return _html.escape(str(s)) if s else ""
+
         day_plan = plan.get("plan", [])
         for i in range(0, len(day_plan), 2):
             cols = st.columns(2)
             for j, col in enumerate(cols):
                 if i + j >= len(day_plan):
                     break
-                day = day_plan[i + j]
-                tasks = day.get("tasks", [])
-                note  = day.get("note", "")
-                theme = day.get("theme", "")
-                focus_h = day.get("focus_hours", "—")
+                day     = day_plan[i + j]
+                tasks   = day.get("tasks", [])
+                note    = e(day.get("note", ""))
+                theme   = e(day.get("theme", ""))
+                focus_h = e(day.get("focus_hours", "—"))
+                day_lbl = e(day.get("day", ""))
 
                 tasks_html = ""
                 for t in tasks:
-                    cat   = t.get("category", "Other")
-                    c_col = cat_colors.get(cat, "#64748b")
+                    cat   = e(t.get("category", "Other"))
+                    c_col = cat_colors.get(t.get("category", "Other"), "#64748b")
                     pdot  = priority_dots.get(t.get("priority", "medium"), "🟡")
+                    time_ = e(t.get("time", ""))
+                    label = e(t.get("label", ""))
                     tasks_html += f"""
 <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
   <span style="font-size:9px;margin-top:3px;">{pdot}</span>
   <div style="flex:1;">
-    <div style="font-size:12px;color:#64748b;font-family:'JetBrains Mono';">{t.get('time','')}</div>
-    <div style="font-size:13px;color:#e2e8f0;font-weight:500;">{t.get('label','')}</div>
+    <div style="font-size:12px;color:#64748b;font-family:'JetBrains Mono';">{time_}</div>
+    <div style="font-size:13px;color:#e2e8f0;font-weight:500;">{label}</div>
   </div>
   <span style="font-size:10px;font-weight:700;color:{c_col};background:{c_col}18;
   padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono';white-space:nowrap;">{cat}</span>
@@ -231,16 +239,18 @@ border-radius:14px;padding:16px 20px;margin-bottom:20px;">
 
                 with col:
                     is_today_card = (week_start + datetime.timedelta(days=i+j)).isoformat() == today_str
-                    border = "border: 1px solid rgba(99,102,241,0.3);" if is_today_card else "border: 1px solid rgba(255,255,255,0.06);"
-                    bg     = "background: rgba(99,102,241,0.05);" if is_today_card else "background: rgba(255,255,255,0.02);"
+                    border = "border:1px solid rgba(99,102,241,0.3);" if is_today_card else "border:1px solid rgba(255,255,255,0.06);"
+                    bg     = "background:rgba(99,102,241,0.05);" if is_today_card else "background:rgba(255,255,255,0.02);"
                     today_badge = '<span style="font-size:10px;font-weight:700;color:#818cf8;background:rgba(99,102,241,0.18);padding:2px 10px;border-radius:4px;font-family:JetBrains Mono;text-transform:uppercase;letter-spacing:1px;">Today</span>' if is_today_card else ""
+                    theme_row   = f'<div style="font-size:11px;color:#64748b;margin-top:2px;">{theme}</div>' if theme else ""
+                    note_row    = f'<div style="margin-top:10px;font-size:12px;color:#6366f1;font-style:italic;">💡 {note}</div>' if note else ""
 
                     st.markdown(f"""
 <div style="{bg}{border}border-radius:14px;padding:16px 18px;margin-bottom:12px;">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
     <div>
-      <span style="font-size:14px;font-weight:700;color:#f1f5f9;">{day.get('day','')}</span>
-      {f'<div style="font-size:11px;color:#64748b;margin-top:2px;">{theme}</div>' if theme else ""}
+      <span style="font-size:14px;font-weight:700;color:#f1f5f9;">{day_lbl}</span>
+      {theme_row}
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
       {today_badge}
@@ -248,11 +258,11 @@ border-radius:14px;padding:16px 20px;margin-bottom:20px;">
     </div>
   </div>
   {tasks_html}
-  {f'<div style="margin-top:10px;font-size:12px;color:#6366f1;font-style:italic;">💡 {note}</div>' if note else ""}
+  {note_row}
 </div>""", unsafe_allow_html=True)
 
         # Advice
-        advice = plan.get("advice", "")
+        advice = _html.escape(plan.get("advice", ""))
         if advice:
             st.markdown(f"""
 <div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);
