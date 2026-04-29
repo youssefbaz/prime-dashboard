@@ -1,0 +1,1 @@
+- [User Profile](user_profile.md) — data scientist, job-hunting, gym 4-5x/week, values polish and data tracking, expects production-grade output

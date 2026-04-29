@@ -14,7 +14,13 @@
       "Bash(git commit -m ' *)",
       "Bash(python -m py_compile pages/12_plan_week.py)",
       "Bash(python -m py_compile pages/13_assistant.py)",
-      "Bash(python -m py_compile pages/13_assistant.py pages/1_dashboard.py pages/12_plan_week.py)"
+      "Bash(python -m py_compile pages/13_assistant.py pages/1_dashboard.py pages/12_plan_week.py)",
+      "Bash(git push *)",
+      "Bash(gh api *)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install *)",
+      "Bash(uipro init *)",
+      "Bash(python -m py_compile pages/0_home.py)"
     ]
   }
 }
