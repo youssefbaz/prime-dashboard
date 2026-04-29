@@ -9,7 +9,12 @@
       "Bash(pkill -f \"streamlit run\")",
       "Bash(python -m py_compile app.py utils.py pages/2_timer.py pages/8_charts.py)",
       "Bash(python -m py_compile pages/1_dashboard.py)",
-      "Bash(pip show *)"
+      "Bash(pip show *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(python -m py_compile pages/12_plan_week.py)",
+      "Bash(python -m py_compile pages/13_assistant.py)",
+      "Bash(python -m py_compile pages/13_assistant.py pages/1_dashboard.py pages/12_plan_week.py)"
     ]
   }
 }

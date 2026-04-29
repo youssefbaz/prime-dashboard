@@ -91,6 +91,23 @@ with tab_gen:
                 d = week_start + datetime.timedelta(days=i)
                 days_of_week.append(d.strftime("%A %b %d"))
 
+            now            = datetime.datetime.now()
+            current_time   = now.strftime("%H:%M")
+            week_start_iso = week_start.isoformat()
+
+            if week_start_iso == today_str:
+                time_context = (
+                    f"CURRENT TIME: The user is opening the app right now at {current_time}. "
+                    f"For TODAY ({days_of_week[0]}), schedule all tasks starting from {current_time} "
+                    f"— do not schedule anything before this time. "
+                    f"For the remaining 6 days, start tasks from a reasonable morning time (08:00 or later)."
+                )
+            else:
+                time_context = (
+                    f"NOTE: The week starts on {days_of_week[0]}, which is a future date. "
+                    f"Schedule each day starting from a reasonable morning time (08:00 or later)."
+                )
+
             prompt = f"""You are an expert productivity coach. Generate a detailed 7-day weekly plan.
 
 USER PROFILE:
@@ -105,6 +122,8 @@ CONSTRAINTS:
 {constraints_input if constraints_input.strip() else 'None specified'}
 
 WEEK DATES: {', '.join(days_of_week)}
+
+{time_context}
 
 Return ONLY valid JSON, no markdown, no extra text:
 {{

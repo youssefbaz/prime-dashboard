@@ -278,4 +278,38 @@ with col_check:
         data.setdefault("daily_checks", {})[today_str] = cks
         save_data(data); st.success("Progress saved! ✅")
 
+# ── Pinned goals (from Goals page) ───────────────────────
+pinned_goals = [g for g in data.get("goals", []) if g.get("pinned") and not g.get("completed")]
+if pinned_goals:
+    st.markdown('<div class="sec-title">📌 Pinned Goals</div>', unsafe_allow_html=True)
+    CAT_COLORS = {"Career":"#fbbf24","Fitness":"#34d399","Learning":"#818cf8","Personal":"#f472b6"}
+    for g in pinned_goals[:3]:
+        milestones = g.get("milestones", [])
+        if milestones:
+            pct = round(sum(1 for m in milestones if m.get("done")) / len(milestones) * 100)
+        else:
+            pct = g.get("progress", 0)
+        color  = CAT_COLORS.get(g.get("category","Personal"), "#818cf8")
+        target = g.get("target_date","")
+        today_d = datetime.date.today()
+        days_left = (datetime.date.fromisoformat(target) - today_d).days if target else None
+        days_txt = f"{days_left}d left" if days_left is not None and days_left >= 0 else ("Due today!" if days_left == 0 else "Overdue")
+        days_col = "#64748b" if days_left and days_left > 7 else ("#fbbf24" if days_left and days_left > 0 else "#ef4444")
+        st.markdown(f"""
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px 18px;margin-bottom:8px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <span style="font-size:14px;font-weight:600;color:#e2e8f0;">{g['title']}</span>
+      <span style="margin-left:10px;font-size:11px;color:{color};background:{color}15;padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono';">{g.get('category','')}</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;">
+      <span style="font-size:12px;color:{days_col};font-family:'JetBrains Mono';">{days_txt}</span>
+      <span style="font-size:13px;font-weight:700;color:{color};">{pct}%</span>
+    </div>
+  </div>
+  <div class="pbar-outer" style="margin:8px 0 0;height:4px;">
+    <div class="pbar-inner" style="width:{pct}%;background:{color};"></div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
 st.markdown('<div class="prime-footer">Prime is built in silence. 🚀 Discipline = Freedom.<br><small>Small daily progress > random bursts of effort.</small></div>', unsafe_allow_html=True)
