@@ -226,16 +226,21 @@ border-radius:14px;padding:16px 20px;margin-bottom:20px;">
                     pdot  = priority_dots.get(t.get("priority", "medium"), "🟡")
                     time_ = e(t.get("time", ""))
                     label = e(t.get("label", ""))
-                    tasks_html += f"""
-<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-  <span style="font-size:9px;margin-top:3px;">{pdot}</span>
-  <div style="flex:1;">
-    <div style="font-size:12px;color:#64748b;font-family:'JetBrains Mono';">{time_}</div>
-    <div style="font-size:13px;color:#e2e8f0;font-weight:500;">{label}</div>
-  </div>
-  <span style="font-size:10px;font-weight:700;color:{c_col};background:{c_col}18;
-  padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono';white-space:nowrap;">{cat}</span>
-</div>"""
+                    tasks_html += (
+                        '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;'
+                        'border-bottom:1px solid rgba(255,255,255,0.04);overflow:hidden;">'
+                        f'<span style="font-size:9px;margin-top:3px;flex-shrink:0;">{pdot}</span>'
+                        '<div style="flex:1;min-width:0;overflow:hidden;">'
+                        f'<div style="font-size:12px;color:#64748b;font-family:\'JetBrains Mono\';'
+                        f'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{time_}</div>'
+                        f'<div style="font-size:13px;color:#e2e8f0;font-weight:500;'
+                        f'overflow:hidden;text-overflow:ellipsis;white-space:normal;word-break:break-word;">{label}</div>'
+                        '</div>'
+                        f'<span style="display:inline-block;font-size:10px;font-weight:700;color:{c_col};'
+                        f'background:{c_col}18;padding:2px 6px;border-radius:4px;font-family:\'JetBrains Mono\';'
+                        f'white-space:nowrap;max-width:60px;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;">{cat}</span>'
+                        '</div>'
+                    )
 
                 with col:
                     is_today_card = (week_start + datetime.timedelta(days=i+j)).isoformat() == today_str
@@ -245,21 +250,26 @@ border-radius:14px;padding:16px 20px;margin-bottom:20px;">
                     theme_row   = f'<div style="font-size:11px;color:#64748b;margin-top:2px;">{theme}</div>' if theme else ""
                     note_row    = f'<div style="margin-top:10px;font-size:12px;color:#6366f1;font-style:italic;">💡 {note}</div>' if note else ""
 
-                    st.markdown(f"""
-<div style="{bg}{border}border-radius:14px;padding:16px 18px;margin-bottom:12px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-    <div>
-      <span style="font-size:14px;font-weight:700;color:#f1f5f9;">{day_lbl}</span>
-      {theme_row}
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-      {today_badge}
-      <span style="font-size:11px;color:#475569;font-family:'JetBrains Mono';">{focus_h}h focus</span>
-    </div>
-  </div>
-  {tasks_html}
-  {note_row}
-</div>""", unsafe_allow_html=True)
+                    card_html = (
+                        f'<div style="{bg}{border}border-radius:14px;padding:16px 18px;margin-bottom:12px;'
+                        'overflow:hidden;word-wrap:break-word;max-width:100%;">'
+                        '<div style="display:flex;justify-content:space-between;align-items:center;'
+                        'margin-bottom:6px;overflow:hidden;">'
+                        '<div style="min-width:0;overflow:hidden;">'
+                        f'<span style="font-size:14px;font-weight:700;color:#f1f5f9;'
+                        f'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;">{day_lbl}</span>'
+                        f'{theme_row}'
+                        '</div>'
+                        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;margin-left:8px;">'
+                        f'{today_badge}'
+                        f'<span style="font-size:11px;color:#475569;font-family:\'JetBrains Mono\';white-space:nowrap;">{focus_h}h focus</span>'
+                        '</div>'
+                        '</div>'
+                        f'{tasks_html}'
+                        f'{note_row}'
+                        '</div>'
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
 
         # Advice
         advice = _html.escape(plan.get("advice", ""))
