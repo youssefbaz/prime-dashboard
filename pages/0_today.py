@@ -161,27 +161,20 @@ border:1px solid rgba(99,102,241,0.12);border-radius:14px;padding:18px 24px;marg
 
     if st.button("🔄 Regenerate quote with AI", use_container_width=True, key="regen_quote"):
         try:
-            claude_key = st.secrets.get("ANTHROPIC_API_KEY", "")
-            if claude_key and HAS_REQUESTS:
+            gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+            if gemini_key and HAS_REQUESTS:
                 prompt = f"""Generate ONE short motivational quote (max 25 words) suitable for a high-performer
 on a {vibe} ({today.strftime('%A')}). Be original and punchy.
 Return ONLY valid JSON: {{"text": "...", "author": "..."}} where author is the real person or 'Unknown'."""
                 r = requests.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "Content-Type": "application/json",
-                        "x-api-key": claude_key,
-                        "anthropic-version": "2023-06-01",
-                    },
-                    json={
-                        "model": "claude-haiku-4-5-20251001",
-                        "max_tokens": 120,
-                        "messages": [{"role": "user", "content": prompt}],
-                    },
+                    f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={gemini_key}",
+                    headers={"Content-Type": "application/json"},
+                    json={"contents": [{"parts": [{"text": prompt}]}],
+                          "generationConfig": {"maxOutputTokens": 120, "temperature": 0.9}},
                     timeout=15,
                 )
                 if r.status_code == 200:
-                    raw = r.json()["content"][0]["text"]
+                    raw = r.json()["candidates"][0]["content"]["parts"][0]["text"]
                     s   = raw.find("{"); e = raw.rfind("}") + 1
                     q   = json.loads(raw[s:e])
                     st.session_state[quote_key] = q
