@@ -22,6 +22,7 @@ jobs       = st.Page("pages/6_jobs.py",           title="Jobs",         icon="�
 cover      = st.Page("pages/7_cover_letter.py",   title="Cover letter", icon="📝")
 charts     = st.Page("pages/8_charts.py",         title="Charts",       icon="📊")
 nutrition  = st.Page("pages/9_nutrition.py",      title="Nutrition",    icon="🍽️")
+habits     = st.Page("pages/10_habits.py",        title="Habits",       icon="🟩")
 
 from utils import load_data, save_data, calc_xp, get_level, get_plan_config, _DEFAULT_PLAN_START, _DEFAULT_PLAN_WEEKS
 import streamlit.components.v1 as _components
@@ -36,7 +37,7 @@ pg = st.navigation({
     "Overview":  [dashboard],
     "Study":     [timer, week, flashcards, quiz],
     "Career":    [jobs, cover],
-    "Health":    [nutrition],
+    "Health":    [nutrition, habits],
     "Analytics": [charts],
 })
 
