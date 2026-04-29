@@ -125,11 +125,11 @@ def call_ai(messages, model):
             else:
                 gemini_msgs.append({"role": role, "parts": [{"text": m["content"]}]})
         r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1/models/{mid}:generateContent?key={GEMINI_KEY}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/{mid}:generateContent?key={GEMINI_KEY}",
             headers={"Content-Type": "application/json"},
             json={
                 "contents":           gemini_msgs,
-                "systemInstruction":  {"parts": [{"text": SYSTEM_PROMPT}]},
+                "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
                 "generationConfig":   {"maxOutputTokens": 2048, "temperature": 0.7},
             },
             timeout=60,
