@@ -15,15 +15,93 @@ START_WEIGHT = 86.5
 DATA_FILE    = "prime_data.json"
 
 # ─────────────────────────────────────────────────────────
+# COLOR TOKENS — single source of truth for inline HTML colors
+# Mirrors the CSS custom properties in app.py :root
+# ─────────────────────────────────────────────────────────
+C = {
+    "focus":      "#6366f1",
+    "focus_mid":  "#818cf8",
+    "lavender":   "#a5b4fc",
+    "pink":       "#f472b6",
+    "success":    "#34d399",
+    "warning":    "#fbbf24",
+    "danger":     "#ef4444",
+    "danger_mid": "#f87171",
+    "sky":        "#60a5fa",
+    "violet_lt":  "#a78bfa",
+    "text_1":     "#f8fafc",
+    "text_soft":  "#e2e8f0",
+    "text_2":     "#cbd5e1",
+    "text_3":     "#94a3b8",
+    "text_4":     "#64748b",
+    "text_5":     "#475569",
+}
+
+def _alpha(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+def cat_bg(hex_color: str, alpha: float = 0.12) -> str:
+    return _alpha(hex_color, alpha)
+
+FOCUS_COLORS = {
+    "ML":       C["pink"],
+    "AWS":      C["sky"],
+    "Practice": C["violet_lt"],
+    "Job":      C["warning"],
+}
+
+_CAT_COLORS = {**FOCUS_COLORS, "SQL": C["warning"]}
+CAT_STYLES = {
+    cat: f"color:{color};background:{cat_bg(color)};"
+    for cat, color in _CAT_COLORS.items()
+}
+
+QUIZ_CAT_STYLES = {
+    "ML Theory":     f"color:{C['pink']};background:{cat_bg(C['pink'])};",
+    "System Design": f"color:{C['success']};background:{cat_bg(C['success'])};",
+    "Behavioral":    f"color:{C['warning']};background:{cat_bg(C['warning'])};",
+}
+
+GOAL_COLORS = {
+    "Career":  C["warning"],
+    "Fitness": C["success"],
+    "Learning":C["focus_mid"],
+    "Health":  C["pink"],
+    "Finance": C["sky"],
+}
+
+def threshold_color(value: float, good: float, warn: float,
+                    higher_is_better: bool = True) -> str:
+    if higher_is_better:
+        if value >= good:  return C["success"]
+        if value >= warn:  return C["warning"]
+        return C["danger"]
+    else:
+        if value <= good:  return C["success"]
+        if value <= warn:  return C["warning"]
+        return C["danger"]
+
+# ─────────────────────────────────────────────────────────
 # PERSISTENCE
 # ─────────────────────────────────────────────────────────
+_EMPTY_DATA = {
+    "daily_checks": {}, "weights": {}, "notes": {}, "missed_acks": [],
+    "jobs": [], "quiz_history": {}, "flash_scores": {}, "cover_letters": [],
+    "focus_sessions": [],
+}
+
 def load_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {"daily_checks": {}, "weights": {}, "notes": {}, "missed_acks": [],
-            "jobs": [], "quiz_history": {}, "flash_scores": {}, "cover_letters": [],
-            "focus_sessions": []}
+        try:
+            with open(DATA_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            import sys
+            print(f"[prime] WARNING: {DATA_FILE} is corrupt or unreadable — starting with empty data.", file=sys.stderr)
+            return dict(_EMPTY_DATA)
+    return dict(_EMPTY_DATA)
 
 def save_data(d):
     with open(DATA_FILE, "w") as f:
@@ -95,14 +173,14 @@ def ollama_available():
     try:
         r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
         return r.status_code == 200
-    except: return False
+    except Exception: return False
 
 def ollama_models():
     try:
         r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
         if r.status_code == 200:
             return [m["name"] for m in r.json().get("models", [])]
-    except: pass
+    except Exception: pass
     return []
 
 def get_default_model():

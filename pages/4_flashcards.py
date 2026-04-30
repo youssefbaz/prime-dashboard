@@ -1,6 +1,6 @@
 import streamlit as st
 import datetime
-from utils import load_data, save_data, FLASHCARDS, sm2_update, get_due_cards
+from utils import load_data, save_data, FLASHCARDS, sm2_update, get_due_cards, CAT_STYLES, C
 
 data       = load_data()
 flash_data = data.get("flash_scores", {})
@@ -21,14 +21,20 @@ total_due   = len([i for i in due_indices if str(i) in flash_data])
 total_new   = len([i for i in due_indices if str(i) not in flash_data])
 mastered    = sum(1 for i in range(len(cards)) if flash_data.get(str(i), {}).get("reps", 0) >= 3)
 
-# Stats row
-sc1, sc2, sc3 = st.columns(3)
-with sc1:
-    st.markdown(f'<div class="s-card"><div class="s-label">Due today</div><div class="s-val" style="color:#ef4444;">{total_due}</div></div>', unsafe_allow_html=True)
-with sc2:
-    st.markdown(f'<div class="s-card"><div class="s-label">New cards</div><div class="s-val" style="color:#818cf8;">{total_new}</div></div>', unsafe_allow_html=True)
-with sc3:
-    st.markdown(f'<div class="s-card"><div class="s-label">Mastered</div><div class="s-val" style="color:#34d399;">{mastered}</div></div>', unsafe_allow_html=True)
+st.markdown(f"""<div class="kpi-row">
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#ef4444;">{total_due}</span>
+    <span class="kpi-label">Due today</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#818cf8;">{total_new}</span>
+    <span class="kpi-label">New cards</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#34d399;">{mastered}</span>
+    <span class="kpi-label">Mastered</span>
+  </div>
+</div>""", unsafe_allow_html=True)
 
 st.markdown("")
 
@@ -41,12 +47,7 @@ current_pos = st.session_state.flash_idx % len(card_order)
 idx         = card_order[current_pos]
 card        = cards[idx]
 
-cat_styles = {
-    "ML":  "color:#f472b6;background:rgba(244,114,182,0.1);",
-    "AWS": "color:#60a5fa;background:rgba(96,165,250,0.1);",
-    "SQL": "color:#fbbf24;background:rgba(251,191,36,0.1);",
-}
-cat_style  = cat_styles.get(card["cat"], "color:#818cf8;background:rgba(129,140,248,0.1);")
+cat_style  = CAT_STYLES.get(card["cat"], f"color:{C['focus_mid']};background:rgba(129,140,248,0.1);")
 card_info  = flash_data.get(str(idx), {})
 interval   = card_info.get("interval", 0)
 ef         = card_info.get("ef", 2.5)

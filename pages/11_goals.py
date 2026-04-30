@@ -1,6 +1,6 @@
 import streamlit as st
 import datetime
-from utils import load_data, save_data, get_week_info
+from utils import load_data, save_data, get_week_info, GOAL_COLORS, C, cat_bg
 
 data = load_data()
 wi   = get_week_info(data)
@@ -55,12 +55,6 @@ if "goals" not in data:
 
 goals = data["goals"]
 
-CAT_COLORS = {
-    "Career":   "#fbbf24",
-    "Fitness":  "#34d399",
-    "Learning": "#818cf8",
-    "Personal": "#f472b6",
-}
 CAT_ICONS = {
     "Career": "💼", "Fitness": "💪", "Learning": "🧠", "Personal": "⭐",
 }
@@ -157,7 +151,7 @@ def render_goal_section(section_goals, section_title):
         cat    = g.get("category", "Personal")
         status = goal_status(g)
         pct    = calc_progress(g)
-        color  = CAT_COLORS.get(cat, "#818cf8")
+        color  = GOAL_COLORS.get(cat, C["focus_mid"])
         icon   = CAT_ICONS.get(cat, "⭐")
         target = g.get("target_date", "")
         pinned = g.get("pinned", False)

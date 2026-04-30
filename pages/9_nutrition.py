@@ -299,7 +299,7 @@ def fetch_random_meal():
         r = requests.get("https://www.themealdb.com/api/json/v1/1/random.php", timeout=10)
         if r.status_code == 200:
             return r.json().get("meals", [None])[0]
-    except: pass
+    except Exception: pass
     return None
 
 def search_meals_by_ingredient(ingredient):
@@ -307,7 +307,7 @@ def search_meals_by_ingredient(ingredient):
         r = requests.get(f"https://www.themealdb.com/api/json/v1/1/filter.php?i={ingredient}", timeout=10)
         if r.status_code == 200:
             return r.json().get("meals", [])
-    except: pass
+    except Exception: pass
     return []
 
 def get_meal_details(meal_id):
@@ -315,7 +315,7 @@ def get_meal_details(meal_id):
         r = requests.get(f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={meal_id}", timeout=10)
         if r.status_code == 200:
             return r.json().get("meals", [None])[0]
-    except: pass
+    except Exception: pass
     return None
 
 ALLERGY_MAP  = {

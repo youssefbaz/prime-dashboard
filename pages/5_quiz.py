@@ -2,7 +2,7 @@ import streamlit as st
 import json, random, time, datetime, re
 from utils import (load_data, save_data, get_week_info,
                    ollama_available, ollama_models, get_default_model, ollama_generate,
-                   QUIZ_QUESTIONS)
+                   QUIZ_QUESTIONS, QUIZ_CAT_STYLES, C)
 
 try:
     import requests
@@ -117,7 +117,7 @@ Return ONLY a JSON object — no markdown, no extra text:
                 st.session_state.cq_category     = quiz_cat
                 st.session_state.cq_show         = False
                 st.session_state.cq_review       = None
-            except:
+            except Exception:
                 st.error("Couldn't parse the response. Try again.")
 
     if st.session_state.get("cq_question"):
@@ -199,10 +199,7 @@ else:
 
     qidx     = st.session_state.quiz_idx % len(qs)
     question = qs[qidx]
-    cat_styles = {"ML Theory":"color:#f472b6;background:rgba(244,114,182,0.1);",
-                  "System Design":"color:#34d399;background:rgba(52,211,153,0.1);",
-                  "Behavioral":"color:#fbbf24;background:rgba(251,191,36,0.1);"}
-    cst = cat_styles.get(question["cat"], "color:#818cf8;background:rgba(129,140,248,0.1);")
+    cst = QUIZ_CAT_STYLES.get(question["cat"], f"color:{C['focus_mid']};background:rgba(129,140,248,0.1);")
 
     st.markdown(f"""
     <div class="flash-card">

@@ -20,12 +20,18 @@ with st.form("job_form", clear_on_submit=True):
     with jc4: job_url  = st.text_input("URL (optional)")
     with jc5: job_note = st.text_input("Note (optional)")
     if st.form_submit_button("➕ Add application", use_container_width=True):
+        company = company.strip()
+        role = role.strip()
         if company and role:
             data.setdefault("jobs", []).append({
                 "company": company, "role": role, "status": status,
-                "url": job_url, "note": job_note, "date": today_str
+                "url": job_url.strip(), "note": job_note.strip(), "date": today_str
             })
             save_data(data); st.success(f"Added {company} — {role}"); st.rerun()
+        elif not company:
+            st.error("Company name is required.")
+        else:
+            st.error("Role / position is required.")
 
 jobs = data.get("jobs", [])
 

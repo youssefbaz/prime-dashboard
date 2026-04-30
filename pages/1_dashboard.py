@@ -3,7 +3,8 @@ import datetime
 from utils import (load_data, save_data, get_week_info, calc_streak,
                    get_daily_quote, TRAINING, CHECKLIST, SCHEDULE_TEMPLATE,
                    ML_BY_WEEK, AWS_BY_WEEK, PRACTICE_BY_WEEK, JOB_BY_WEEK,
-                   GOAL_WEIGHT, START_WEIGHT, calc_xp, get_level)
+                   GOAL_WEIGHT, START_WEIGHT, calc_xp, get_level,
+                   C, GOAL_COLORS, threshold_color)
 
 try:
     import requests
@@ -129,16 +130,29 @@ if missed:
                     data.setdefault("missed_acks", []).append(m["str"])
                     save_data(data); st.rerun()
 
-# ── Stat cards ────────────────────────────────────────────
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    st.markdown(f'<div class="s-card"><div class="s-label">Progress</div><div class="s-val" style="color:#818cf8;">{pct}%</div><div class="s-sub">Week {week_num} of 8</div></div>', unsafe_allow_html=True)
-with c2:
-    st.markdown(f'<div class="s-card"><div class="s-label">Experience</div><div class="s-val" style="color:#f472b6;">LVL {lvl}</div><div class="s-sub">{prog}/{req} XP to next</div></div>', unsafe_allow_html=True)
-with c3:
-    st.markdown(f'<div class="s-card"><div class="s-label">Streak</div><div class="s-val" style="color:#34d399;">{streak}</div><div class="s-sub">Consecutive days</div></div>', unsafe_allow_html=True)
-with c4:
-    st.markdown(f'<div class="s-card"><div class="s-label">Weight</div><div class="s-val" style="color:#fbbf24;">{lw if lw else "—"}</div><div class="s-sub">Goal: {GOAL_WEIGHT} kg</div></div>', unsafe_allow_html=True)
+# ── KPI strip ─────────────────────────────────────────────
+st.markdown(f"""<div class="kpi-row">
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#818cf8;">{pct}%</span>
+    <span class="kpi-label">Progress</span>
+    <span class="kpi-detail">Week {week_num} of 8</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#f472b6;">LVL {lvl}</span>
+    <span class="kpi-label">Experience</span>
+    <span class="kpi-detail">{prog}/{req} XP to next</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#34d399;">{streak}</span>
+    <span class="kpi-label">Streak</span>
+    <span class="kpi-detail">Consecutive days</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#fbbf24;">{lw if lw else '—'}</span>
+    <span class="kpi-label">Weight</span>
+    <span class="kpi-detail">Goal: {GOAL_WEIGHT} kg</span>
+  </div>
+</div>""", unsafe_allow_html=True)
 
 # ── AI Daily Reflection (After 8 PM) ──────────────────────
 if now.hour >= 20:
@@ -214,7 +228,7 @@ col_sched, col_check = st.columns([3, 2])
 with col_sched:
     st.markdown('<div class="sec-title">Schedule</div>', unsafe_allow_html=True)
     if is_sunday:
-        st.markdown('<div class="sch-active" style="border-left-color:#818cf8;"><div style="font-size:15px;color:#a5b4fc;font-weight:600;">🧘 Light day — weekly review only</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="sch-active"><div style="font-size:15px;color:#a5b4fc;font-weight:600;">🧘 Light day — weekly review only</div></div>', unsafe_allow_html=True)
     else:
         # Build training info for gym block
         tr_info = TRAINING.get(day_name, {})
@@ -270,17 +284,15 @@ with col_sched:
 
 with col_check:
     st.markdown('<div class="sec-title">Checklist</div>', unsafe_allow_html=True)
-    ck_changed = False
-    for i, item in enumerate(CHECKLIST):
-        prev = tc.get(str(i), False)
-        val  = st.checkbox(item, value=prev, key=f"ck_{i}")
-        if val != prev:
-            ck_changed = True
-    if ck_changed:
+
+    def _autosave_checks():
         cks = {str(i): st.session_state.get(f"ck_{i}", False) for i in range(len(CHECKLIST))}
-        data.setdefault("daily_checks", {})[today_str] = cks
-        save_data(data)
-        st.rerun()
+        _d = load_data()
+        _d.setdefault("daily_checks", {})[today_str] = cks
+        save_data(_d)
+
+    for i, item in enumerate(CHECKLIST):
+        st.checkbox(item, value=tc.get(str(i), False), key=f"ck_{i}", on_change=_autosave_checks)
     if cp == 100:
         st.balloons()
         st.success("🏆 All tasks completed!")
@@ -289,24 +301,23 @@ with col_check:
 pinned_goals = [g for g in data.get("goals", []) if g.get("pinned") and not g.get("completed")]
 if pinned_goals:
     st.markdown('<div class="sec-title">📌 Pinned Goals</div>', unsafe_allow_html=True)
-    CAT_COLORS = {"Career":"#fbbf24","Fitness":"#34d399","Learning":"#818cf8","Personal":"#f472b6"}
     for g in pinned_goals[:3]:
         milestones = g.get("milestones", [])
         if milestones:
             pct = round(sum(1 for m in milestones if m.get("done")) / len(milestones) * 100)
         else:
             pct = g.get("progress", 0)
-        color  = CAT_COLORS.get(g.get("category","Personal"), "#818cf8")
+        color  = GOAL_COLORS.get(g.get("category","Personal"), C["focus_mid"])
         target = g.get("target_date","")
         today_d = datetime.date.today()
         days_left = (datetime.date.fromisoformat(target) - today_d).days if target else None
         days_txt = f"{days_left}d left" if days_left is not None and days_left >= 0 else ("Due today!" if days_left == 0 else "Overdue")
-        days_col = "#64748b" if days_left and days_left > 7 else ("#fbbf24" if days_left and days_left > 0 else "#ef4444")
+        days_col = threshold_color(days_left if days_left is not None else -1, 7, 1, higher_is_better=False)
         st.markdown(f"""
 <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px 18px;margin-bottom:8px;">
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <div>
-      <span style="font-size:14px;font-weight:600;color:#e2e8f0;">{g['title']}</span>
+      <span class="truncate" style="font-size:14px;font-weight:600;color:#e2e8f0;max-width:220px;display:inline-block;">{g['title']}</span>
       <span style="margin-left:10px;font-size:11px;color:{color};background:{color}15;padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono';">{g.get('category','')}</span>
     </div>
     <div style="display:flex;gap:14px;align-items:center;">

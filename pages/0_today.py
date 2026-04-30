@@ -2,7 +2,8 @@ import streamlit as st
 import datetime
 import json
 from utils import (load_data, save_data, get_week_info, QUOTES, SCHEDULE_TEMPLATE,
-                   ML_BY_WEEK, AWS_BY_WEEK, PRACTICE_BY_WEEK, JOB_BY_WEEK, get_plan_config)
+                   ML_BY_WEEK, AWS_BY_WEEK, PRACTICE_BY_WEEK, JOB_BY_WEEK, get_plan_config,
+                   C, FOCUS_COLORS, threshold_color)
 
 try:
     import requests
@@ -257,7 +258,7 @@ with col_right:
     days_done   = max(0, (today - plan_start).days)
     days_left   = max(0, (plan_end - today).days)
     bar_pct     = min(100, round((days_done / max(1, total_days)) * 100))
-    bar_color   = "#34d399" if bar_pct >= 80 else ("#fbbf24" if bar_pct >= 50 else "#818cf8")
+    bar_color   = threshold_color(bar_pct, 80, 50)
 
     # Current week focus
     w = max(1, min(plan_weeks, week_num))
@@ -274,8 +275,6 @@ with col_right:
             "Practice": "Rest", "Job": "Weekly Review",
         }
 
-    focus_colors = {"ML": "#f87171", "AWS": "#60a5fa", "Practice": "#f472b6", "Job": "#fbbf24"}
-
     st.markdown(f"""
 <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);
 border-radius:18px;padding:20px 22px;margin-bottom:20px;">
@@ -287,7 +286,7 @@ border-radius:18px;padding:20px 22px;margin-bottom:20px;">
     <div class="pbar-inner" style="width:{bar_pct}%;background:linear-gradient(90deg,{bar_color},{bar_color}99);"></div>
   </div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;">
-    {"".join(f'<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:6px 12px;"><div style="font-size:9px;color:{focus_colors[cat]};text-transform:uppercase;letter-spacing:1px;font-family:\'JetBrains Mono\';">{cat}</div><div style="font-size:12px;color:#cbd5e1;margin-top:2px;font-weight:500;">{task}</div></div>' for cat, task in week_focus.items())}
+    {"".join(f'<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:6px 12px;"><div style="font-size:9px;color:{FOCUS_COLORS.get(cat, "#818cf8")};text-transform:uppercase;letter-spacing:1px;font-family:\'JetBrains Mono\';">{cat}</div><div style="font-size:12px;color:#cbd5e1;margin-top:2px;font-weight:500;">{task}</div></div>' for cat, task in week_focus.items())}
   </div>
   <div style="margin-top:14px;font-size:12px;color:#475569;font-family:'JetBrains Mono';">{days_left} days remaining in plan</div>
 </div>

@@ -20,7 +20,12 @@
       "WebFetch(domain:github.com)",
       "Bash(npm install *)",
       "Bash(uipro init *)",
-      "Bash(python -m py_compile pages/0_home.py)"
+      "Bash(python -m py_compile pages/0_home.py)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(node *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)"
     ]
   }
 }

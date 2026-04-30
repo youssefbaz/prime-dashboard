@@ -96,18 +96,30 @@ total_jobs        = len(jobs)
 interviews        = sum(1 for j in jobs if j.get("status") == "Interview")
 focus_min         = sum(s.get("minutes", 0) for s in focus_ss)
 
-sc1, sc2, sc3, sc4, sc5 = st.columns(5)
-with sc1:
-    st.markdown(f'<div class="s-card"><div class="s-label">Days logged</div><div class="s-val" style="color:#818cf8;">{total_days_logged}</div></div>', unsafe_allow_html=True)
-with sc2:
-    st.markdown(f'<div class="s-card"><div class="s-label">Tasks done</div><div class="s-val" style="color:#34d399;">{total_tasks_done}</div></div>', unsafe_allow_html=True)
-with sc3:
-    st.markdown(f'<div class="s-card"><div class="s-label">Jobs applied</div><div class="s-val" style="color:#fbbf24;">{total_jobs}</div></div>', unsafe_allow_html=True)
-with sc4:
-    st.markdown(f'<div class="s-card"><div class="s-label">Interviews</div><div class="s-val" style="color:#f472b6;">{interviews}</div></div>', unsafe_allow_html=True)
-with sc5:
-    fh = focus_min // 60
-    st.markdown(f'<div class="s-card"><div class="s-label">Focus</div><div class="s-val" style="color:#a78bfa;">{fh}h</div><div class="s-sub">{focus_min} min</div></div>', unsafe_allow_html=True)
+fh = focus_min // 60
+st.markdown(f"""<div class="kpi-row">
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#818cf8;">{total_days_logged}</span>
+    <span class="kpi-label">Days logged</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#34d399;">{total_tasks_done}</span>
+    <span class="kpi-label">Tasks done</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#fbbf24;">{total_jobs}</span>
+    <span class="kpi-label">Jobs applied</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#f472b6;">{interviews}</span>
+    <span class="kpi-label">Interviews</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-value" style="color:#a78bfa;">{fh}h</span>
+    <span class="kpi-label">Focus</span>
+    <span class="kpi-detail">{focus_min} min total</span>
+  </div>
+</div>""", unsafe_allow_html=True)
 
 st.markdown("")
 
