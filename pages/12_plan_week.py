@@ -163,10 +163,11 @@ Rules:
                         },
                         json={
                             "model": "claude-sonnet-4-6",
-                            "max_tokens": 3000,
+                            "max_tokens": 4096,
+                            "system": "You are a productivity coach. Always respond with valid, complete JSON only. No markdown, no code fences, no extra text before or after the JSON object.",
                             "messages": [{"role": "user", "content": prompt}],
                         },
-                        timeout=60,
+                        timeout=90,
                     )
                     if r.status_code == 200:
                         raw = r.json()["content"][0]["text"]

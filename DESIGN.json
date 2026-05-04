@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-04-30T00:00:00Z",
+  "title": "Design System: Prime Dashboard",
+  "extensions": {
+    "colorMeta": {
+      "focus-indigo":  { "role": "primary",   "displayName": "Focus Indigo",   "canonical": "oklch(56% 0.22 264)", "tonalRamp": ["#0e0e2a","#1e1b4b","#312e81","#3730a3","#4338ca","#6366f1","#818cf8","#a5b4fc"] },
+      "push-violet":   { "role": "secondary",  "displayName": "Push Violet",    "canonical": "oklch(60% 0.27 302)", "tonalRamp": ["#2e1065","#4a1d96","#5b21b6","#6d28d9","#7c3aed","#8b5cf6","#a855f7","#c084fc"] },
+      "surge-pink":    { "role": "tertiary",   "displayName": "Surge Pink",     "canonical": "oklch(63% 0.27 340)", "tonalRamp": ["#500724","#881337","#9f1239","#be123c","#e11d48","#ec4899","#f472b6","#fbcfe8"] },
+      "indigo-light":  { "role": "primary",    "displayName": "Indigo Light",   "canonical": "oklch(68% 0.16 264)", "tonalRamp": ["#1e1b4b","#312e81","#4338ca","#6366f1","#818cf8","#a5b4fc","#c7d2fe","#e0e7ff"] },
+      "lavender":      { "role": "primary",    "displayName": "Lavender",       "canonical": "oklch(78% 0.12 264)", "tonalRamp": ["#312e81","#4338ca","#6366f1","#818cf8","#a5b4fc","#c7d2fe","#e0e7ff","#eef2ff"] },
+      "void":          { "role": "neutral",    "displayName": "Void",           "canonical": "oklch(4% 0.005 264)",  "tonalRamp": ["#07070a","#0a0a0f","#0f0f1c","#1a1a3a","#1e293b","#334155","#475569","#64748b"] },
+      "deep-space":    { "role": "neutral",    "displayName": "Deep Space",     "canonical": "oklch(5% 0.006 264)",  "tonalRamp": ["#07070a","#0a0a0f","#0f0f1c","#1a1a3a","#1e293b","#334155","#475569","#64748b"] },
+      "void-indigo":   { "role": "neutral",    "displayName": "Void Indigo",    "canonical": "oklch(8% 0.01 264)",   "tonalRamp": ["#07070a","#0a0a0f","#0f0f1c","#1a1a3a","#1e293b","#2d3748","#475569","#64748b"] },
+      "text-primary":  { "role": "neutral",    "displayName": "Text Primary",   "canonical": "oklch(97% 0.004 220)", "tonalRamp": ["#1e293b","#334155","#475569","#64748b","#94a3b8","#cbd5e1","#e2e8f0","#f8fafc"] },
+      "text-secondary":{ "role": "neutral",    "displayName": "Text Secondary", "canonical": "oklch(68% 0.016 220)", "tonalRamp": ["#1e293b","#334155","#475569","#64748b","#94a3b8","#cbd5e1","#e2e8f0","#f8fafc"] },
+      "text-muted":    { "role": "neutral",    "displayName": "Text Muted",     "canonical": "oklch(52% 0.012 220)", "tonalRamp": ["#1e293b","#334155","#475569","#64748b","#94a3b8","#cbd5e1","#e2e8f0","#f8fafc"] },
+      "emerald":       { "role": "semantic",   "displayName": "Emerald",        "canonical": "oklch(80% 0.17 164)",  "tonalRamp": ["#064e3b","#065f46","#047857","#059669","#10b981","#34d399","#6ee7b7","#a7f3d0"] },
+      "amber":         { "role": "semantic",   "displayName": "Amber",          "canonical": "oklch(85% 0.15 80)",   "tonalRamp": ["#451a03","#78350f","#92400e","#b45309","#d97706","#f59e0b","#fbbf24","#fde68a"] },
+      "crimson":       { "role": "semantic",   "displayName": "Crimson",        "canonical": "oklch(58% 0.22 27)",   "tonalRamp": ["#450a0a","#7f1d1d","#991b1b","#b91c1c","#dc2626","#ef4444","#f87171","#fca5a5"] }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Page titles only. One per page. Outfit 900 at fluid size." },
+      "headline": { "displayName": "Headline", "purpose": "Section dividers (.sec-title). Outfit 800 at 20px." },
+      "title":    { "displayName": "Title",    "purpose": "Large stat values in card contexts (.s-val). Outfit 800 at 32px." },
+      "body":     { "displayName": "Body",     "purpose": "All prose, descriptions, notes. Inter 400 at 14px. Max 65ch." },
+      "label":    { "displayName": "Label",    "purpose": "Data classifiers, badges, supertitles. JetBrains Mono 700 at 11px, ALL CAPS, 2px tracking." }
+    },
+    "shadows": [
+      { "name": "card-hover",    "value": "0 25px 50px -12px rgba(0,0,0,0.50)",        "purpose": "Applied to .s-card on hover, alongside translateY(-8px). Flat at rest." },
+      { "name": "button-glow",   "value": "0 4px 15px rgba(99,102,241,0.25)",           "purpose": "Resting glow on primary button. Hover intensifies to 0 8px 25px rgba(99,102,241,0.40)." },
+      { "name": "button-glow-hover", "value": "0 8px 25px rgba(99,102,241,0.40)",       "purpose": "Hover state of primary button glow." },
+      { "name": "focus-ring",    "value": "0 0 0 3px rgba(129,140,248,0.10)",           "purpose": "Input focus ring. Thin, indigo-tinted, non-distracting." },
+      { "name": "xp-glow",       "value": "0 0 10px rgba(99,102,241,0.50)",             "purpose": "Slider thumb glow on XP sliders." }
+    ],
+    "motion": [
+      { "name": "ease-standard",  "value": "cubic-bezier(0.4, 0, 0.2, 1)",             "purpose": "Existing --ease var. Material standard curve. Used across most transitions." },
+      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)",            "purpose": "Preferred ease-out for new work per impeccable guidelines. Snappier exits." },
+      { "name": "ease-lift",      "value": "cubic-bezier(0.175, 0.885, 0.32, 1.275)",  "purpose": "Card hover lift and button hover. Slight overshoot for physical feel." },
+      { "name": "duration-micro", "value": "150ms",   "purpose": "Instant feedback: toggles, color changes." },
+      { "name": "duration-state", "value": "250ms",   "purpose": "State transitions: border color, background, nav hover." },
+      { "name": "duration-lift",  "value": "400ms",   "purpose": "Card hover lift. Slow enough to feel physical." },
+      { "name": "duration-page",  "value": "600ms",   "purpose": ".block-container fadeInUp entry animation." }
+    ],
+    "breakpoints": [
+      { "name": "sm",  "value": "640px",  "purpose": "Single-column stack below this width." },
+      { "name": "md",  "value": "768px",  "purpose": "Two-column layouts activate." },
+      { "name": "lg",  "value": "1024px", "purpose": "Full dashboard layout. Sidebar always visible." },
+      { "name": "xl",  "value": "1280px", "purpose": "Max content width cap: 1150px (block-container)." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single primary action per screen. Gradient fill, ambient glow, physical hover lift.",
+      "html": "<button class=\"ds-btn-primary\">Save Changes</button>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600&display=swap'); .ds-btn-primary { background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff; border: none; border-radius: 12px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 14px; padding: 10px 24px; letter-spacing: 0.3px; cursor: pointer; box-shadow: 0 4px 15px rgba(99,102,241,0.25); transition: transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.3s ease, filter 0.3s ease; } .ds-btn-primary:hover { transform: translateY(-2px) scale(1.01); box-shadow: 0 8px 25px rgba(99,102,241,0.40); filter: brightness(1.1); } .ds-btn-primary:active { transform: translateY(0); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Subdued ghost button. Does not compete with primary.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600&display=swap'); .ds-btn-secondary { background: rgba(255,255,255,0.04); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 14px; padding: 10px 24px; cursor: pointer; box-shadow: none; transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease; } .ds-btn-secondary:hover { background: rgba(255,255,255,0.07); border-color: rgba(129,140,248,0.35); color: #e2e8f0; transform: translateY(-1px); } .ds-btn-secondary:active { transform: translateY(0); }"
+    },
+    {
+      "name": "Stat Card (Glass)",
+      "kind": "card",
+      "refersTo": "button-primary",
+      "description": "Primary data container. Glassmorphic surface, shimmer on hover, dramatic lift interaction.",
+      "html": "<div class=\"ds-card-glass\"><div class=\"ds-card-label\">STREAK</div><div class=\"ds-card-value\">12</div><div class=\"ds-card-sub\">consecutive days</div></div>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@800&family=JetBrains+Mono:wght@700&display=swap'); .ds-card-glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; text-align: center; position: relative; overflow: hidden; transition: all 0.4s cubic-bezier(0.175,0.885,0.32,1.275); } .ds-card-glass::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent); transition: 0.5s; } .ds-card-glass:hover::before { left: 100%; } .ds-card-glass:hover { transform: translateY(-8px) rotateX(2deg); border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); } .ds-card-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #64748b; margin-bottom: 10px; } .ds-card-value { font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 800; color: #f8fafc; line-height: 1; } .ds-card-sub { font-size: 13px; color: #475569; margin-top: 8px; }"
+    },
+    {
+      "name": "Section Container",
+      "kind": "card",
+      "refersTo": "button-secondary",
+      "description": "Secondary grouping surface. Opaque tonal background, no blur, no hover transform.",
+      "html": "<div class=\"ds-card-surface\"><div class=\"ds-section-title\">Progress</div><p style=\"color:#94a3b8;font-size:14px;margin:0;\">Content goes here.</p></div>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@800&family=Inter:wght@400&display=swap'); .ds-card-surface { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 18px; padding: 24px; margin-bottom: 20px; } .ds-section-title { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 800; color: #f1f5f9; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Subtle dark input. Barely visible at rest, indigo focus ring on activation.",
+      "html": "<div class=\"ds-input-wrap\"><label class=\"ds-input-label\">WEIGHT (KG)</label><input class=\"ds-input\" type=\"number\" placeholder=\"75.0\" /></div>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400&family=JetBrains+Mono:wght@700&display=swap'); .ds-input-wrap { display: flex; flex-direction: column; gap: 6px; } .ds-input-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #64748b; } .ds-input { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; color: #f1f5f9; font-family: 'Inter', sans-serif; font-size: 14px; padding: 10px 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; } .ds-input:focus { border-color: rgba(129,140,248,0.40); box-shadow: 0 0 0 3px rgba(129,140,248,0.10); }"
+    },
+    {
+      "name": "Progress Bar",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Shimmer-animated indigo progress bar. Used for plan completion and habit tracking.",
+      "html": "<div class=\"ds-progress-wrap\"><div class=\"ds-progress-track\"><div class=\"ds-progress-fill\" style=\"width: 67%;\"></div></div></div>",
+      "css": "@keyframes ds-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } } .ds-progress-track { height: 8px; background: rgba(255,255,255,0.04); border-radius: 99px; overflow: hidden; margin: 10px 0; } .ds-progress-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #a855f7); border-radius: 99px; position: relative; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); } .ds-progress-fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.30), transparent); background-size: 200% 100%; animation: ds-shimmer 2.5s linear infinite; }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "button-secondary",
+      "description": "Sidebar navigation link. Subtle hover shift; active state uses indigo left-rail indicator.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-link\" href=\"#\">Dashboard</a><a class=\"ds-nav-link ds-nav-link--active\" href=\"#\">Today</a><a class=\"ds-nav-link\" href=\"#\">Timer</a></nav>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap'); .ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 0; } .ds-nav-link { display: block; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; color: #94a3b8; padding: 10px 14px; border-radius: 10px; text-decoration: none; transition: background 0.3s ease, transform 0.3s ease, color 0.3s ease; } .ds-nav-link:hover { background: rgba(255,255,255,0.04); transform: translateX(4px); color: #cbd5e1; } .ds-nav-link--active { background: linear-gradient(90deg, rgba(99,102,241,0.15), rgba(99,102,241,0.02)); box-shadow: inset 3px 0 0 #818cf8; color: #e2e8f0; font-weight: 600; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "button-secondary",
+      "description": "JetBrains Mono badge for labels, categories, and status indicators.",
+      "html": "<span class=\"ds-badge\" style=\"background:rgba(99,102,241,0.18);color:#818cf8;\">ACTIVE</span> <span class=\"ds-badge\" style=\"background:rgba(52,211,153,0.15);color:#34d399;\">DONE</span> <span class=\"ds-badge\" style=\"background:rgba(239,68,68,0.12);color:#f87171;\">OVERDUE</span>",
+      "css": "@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600&display=swap'); .ds-badge { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 3px 10px; border-radius: 6px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Precision Instrument",
+    "overview": "Prime Dashboard is a personal operating system, not a product to be sold. Like a pilot's cockpit or a professional athlete's training computer, every element on screen exists to help the user execute a plan: the dark glass stays out of the way, the data reads at a glance, the controls respond without hesitation. The aesthetic is earned discipline, not designed atmosphere.\n\nThe system draws from Linear and Raycast: precise spacing, a restrained palette anchored by one strong accent color, no surface decoration that doesn't carry information. This system explicitly rejects the corporate BI tool aesthetic and the generic SaaS dashboard pattern. Prime belongs to one person on one mission.\n\nPrime is built in silence. Discipline = Freedom.",
+    "keyCharacteristics": [
+      "Dark-first: the scene forces the answer. A person at a desk or on a phone in focused work mode.",
+      "One accent, used sparingly: Focus Indigo carries CTAs, active states, and progress. Its rarity is its power.",
+      "Three-font system with distinct roles: Outfit for display energy, Inter for readable density, JetBrains Mono for data precision.",
+      "Flat at rest, dramatic on interaction: surfaces are tonal planes until touched.",
+      "Gamification that earns its place: XP, streaks, and level progress exist because the user earned them."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule",        "body": "Focus Indigo (#6366f1) is used on 10% or fewer of any given screen's interactive elements. It marks the single most important action or the current state. When everything is accented, nothing is.", "section": "colors" },
+      { "name": "The No Pure Black Rule",    "body": "#000 and #fff are forbidden. Every background uses Void or Deep Space; every text color uses the slate-text hierarchy.", "section": "colors" },
+      { "name": "The Three-Font Boundary Rule", "body": "Outfit is for display and section headers only. Inter is for body and UI copy. JetBrains Mono is for labels, badges, and numerical metadata. The three fonts signal three different types of information.", "section": "typography" },
+      { "name": "The No Gradient Text Rule", "body": "New screens should use #f8fafc for display titles. The existing .page-title gradient-text pattern is a legacy exception, not the standard.", "section": "typography" },
+      { "name": "The Flat-at-Rest Rule",     "body": "No component carries a resting shadow. Elevation is a response to state (hover, focus, active), not an ambient style.", "section": "elevation" },
+      { "name": "The Selective Glass Rule",  "body": "backdrop-filter: blur() is used on .s-card stat cards and the sidebar only. Blur everywhere is noise; blur on the primary layer is signal.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Focus Indigo (#6366f1) exclusively for the primary action and active state on any screen.",
+      "Do keep card backgrounds in the rgba(255,255,255,0.02–0.06) range.",
+      "Do use JetBrains Mono for all numerical labels, badges, and data classifiers.",
+      "Do vary card types by content importance: .s-card (glass) for primary KPIs; .section-card (opaque) for secondary content.",
+      "Do use the three-step text hierarchy: #f8fafc for critical data, #94a3b8 for secondary copy, #64748b for metadata.",
+      "Do reserve the indigo-violet-pink gradient for progress bars and the XP system only.",
+      "Do write copy in the voice of the brand: direct, terse, no filler.",
+      "Do use semantic colors (Emerald, Amber, Crimson) as system state, not decoration."
+    ],
+    "donts": [
+      "Don't use the Corporate BI tool aesthetic: no gray-heavy clinical layouts, no generic stat blocks that could belong to any company.",
+      "Don't add backdrop-filter: blur() to every surface. Glass is reserved for .s-card and the sidebar.",
+      "Don't use gradient text (background-clip: text) on new screens.",
+      "Don't use identical card grids: same size, same structure, icon + heading + text, repeated.",
+      "Don't add a left or right border stripe (border-left: 4px solid accent) to cards or list items as decorative accent.",
+      "Don't use Outfit for body copy or JetBrains Mono for paragraph text.",
+      "Don't animate layout properties. Animate transform and opacity only.",
+      "Don't use #000 or #fff anywhere.",
+      "Don't write hollow motivational copy. Feedback is direct and honest: the data speaks."
+    ]
+  }
+}
