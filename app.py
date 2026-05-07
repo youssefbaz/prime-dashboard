@@ -29,7 +29,7 @@ goals      = st.Page("pages/11_goals.py",         title="Goals",        icon="�
 plan_week  = st.Page("pages/12_plan_week.py",     title="Plan My Week", icon="🗓️")
 assistant  = st.Page("pages/13_assistant.py",     title="AI Assistant", icon="🤖")
 
-from utils import load_data, save_data, calc_xp, get_level, get_plan_config, _DEFAULT_PLAN_START, _DEFAULT_PLAN_WEEKS
+from utils import load_data, save_data, backup_data, calc_xp, get_level, get_plan_config, _DEFAULT_PLAN_START, _DEFAULT_PLAN_WEEKS
 import streamlit.components.v1 as _components
 
 data = load_data()
@@ -52,52 +52,98 @@ pg = st.navigation({
 #    React tree positions are stable across page navigations) ──
 _RADIO_HTML = """
 <style>
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:transparent; font-family:'Inter',sans-serif; padding:4px 0; }
-  .lbl { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#64748b; margin-bottom:8px; }
-  select { width:100%; padding:7px 10px; margin-bottom:10px; background:rgba(255,255,255,0.04); color:#e2e8f0; border:1px solid rgba(255,255,255,0.1); border-radius:8px; font-size:13px; cursor:pointer; outline:none; }
-  .btns { display:flex; gap:6px; margin-bottom:8px; }
-  button { flex:1; padding:7px 4px; font-size:13px; font-weight:600; border:none; border-radius:8px; cursor:pointer; background:rgba(99,102,241,0.2); color:#a5b4fc; transition:background .2s; }
-  button:hover { background:rgba(99,102,241,0.4); }
-  #bp { background:rgba(52,211,153,0.15); color:#34d399; } #bp:hover { background:rgba(52,211,153,0.3); }
-  #bs { background:rgba(239,68,68,0.1);  color:#f87171; } #bs:hover { background:rgba(239,68,68,0.25); }
-  .st { font-size:11px; color:#475569; text-align:center; }
-  .st.on { color:#34d399; } .st.pa { color:#fbbf24; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:transparent; font-family:'Inter',sans-serif; padding:2px 0; }
+.lbl { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#475569; margin-bottom:8px; }
+.stations { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:9px; }
+.st { padding:6px 8px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:8px; cursor:pointer; font-size:11px; font-weight:500; color:#94a3b8; text-align:center; transition:all .18s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.st:hover { background:rgba(255,255,255,0.08); color:#e2e8f0; border-color:rgba(255,255,255,0.12); }
+.st.on { background:linear-gradient(135deg,rgba(99,102,241,.28),rgba(168,85,247,.18)); border-color:rgba(129,140,248,.55); color:#a5b4fc; font-weight:700; }
+.ctrl { display:flex; gap:5px; align-items:center; margin-bottom:7px; }
+.bp { flex:1; padding:7px 10px; font-size:12px; font-weight:700; border:none; border-radius:8px; cursor:pointer; background:linear-gradient(135deg,#6366f1,#a855f7); color:#fff; letter-spacing:.3px; transition:all .2s; }
+.bp:hover { filter:brightness(1.12); transform:translateY(-1px); }
+.bs { padding:7px 9px; font-size:13px; border:1px solid rgba(239,68,68,.22); border-radius:8px; cursor:pointer; background:rgba(239,68,68,.07); color:#f87171; transition:all .2s; }
+.bs:hover { background:rgba(239,68,68,.16); }
+.viz { display:flex; align-items:flex-end; gap:2px; height:20px; margin-left:2px; }
+.bar { width:3px; border-radius:2px; background:linear-gradient(to top,#6366f1,#a855f7); height:3px; }
+.viz.playing .bar { animation:eq .85s ease-in-out infinite; }
+.bar:nth-child(1){animation-delay:0s} .bar:nth-child(2){animation-delay:.1s} .bar:nth-child(3){animation-delay:.22s} .bar:nth-child(4){animation-delay:.1s} .bar:nth-child(5){animation-delay:.34s}
+@keyframes eq { 0%,100%{height:3px;opacity:.35} 50%{height:17px;opacity:1} }
+.stat { display:flex; align-items:center; gap:5px; font-size:10px; color:#475569; font-family:monospace; min-height:13px; }
+.dot { width:5px; height:5px; border-radius:50%; background:#475569; }
+.stat.on { color:#34d399; } .stat.on .dot { background:#34d399; animation:pulse 1.4s ease-in-out infinite; }
+.stat.pa { color:#fbbf24; } .stat.pa .dot { background:#fbbf24; }
+.stat.er { color:#f87171; } .stat.er .dot { background:#f87171; }
+@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
 </style>
 <div class="lbl">📻 Radio</div>
-<select id="sel" onchange="onChange()">
-  <option value="https://hitradio.ice.infomaniak.ch/hitradio-128.mp3">Hit Radio</option>
-  <option value="https://radiomars.ice.infomaniak.ch/radiomars-128.mp3">Radio Mars</option>
-  <option value="https://mfmradio.ice.infomaniak.ch/mfmradio-128.mp3">MFM Radio</option>
-  <option value="https://luxeradio.ice.infomaniak.ch/luxeradio-128.mp3">Luxe Radio</option>
-</select>
-<div class="btns">
-  <button id="bp" onclick="play()">▶ Play</button>
-  <button onclick="pause()">⏸ Pause</button>
-  <button id="bs" onclick="stop()">⏹ Stop</button>
+<div class="stations">
+  <div class="st" data-url="https://hitradio.ice.infomaniak.ch/hitradio-128.mp3" onclick="pick(this)">Hit Radio</div>
+  <div class="st" data-url="https://radiomars.ice.infomaniak.ch/radiomars-128.mp3" onclick="pick(this)">Radio Mars</div>
+  <div class="st" data-url="https://mfmradio.ice.infomaniak.ch/mfmradio-128.mp3" onclick="pick(this)">MFM Radio</div>
+  <div class="st" data-url="https://luxeradio.ice.infomaniak.ch/luxeradio-128.mp3" onclick="pick(this)">Luxe Radio</div>
 </div>
-<div class="st" id="st">Stopped</div>
+<div class="ctrl">
+  <button class="bp" id="bp" onclick="toggle()">▶ Play</button>
+  <button class="bs" onclick="stop()">⏹</button>
+  <div class="viz" id="viz">
+    <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+  </div>
+</div>
+<div class="stat" id="stat"><div class="dot"></div>Stopped</div>
 <audio id="a"></audio>
 <script>
-  var a=document.getElementById('a'), s=document.getElementById('st');
-  function set(t,c){s.textContent=t;s.className='st '+(c||'');}
-  function play(){a.src=document.getElementById('sel').value;a.play();set('● Playing','on');}
-  function pause(){a.pause();set('⏸ Paused','pa');}
-  function stop(){a.pause();a.src='';set('Stopped','');}
-  function onChange(){if(a.src&&!a.paused)play();}
-  a.onerror=function(){set('⚠ Stream error','');};
+var a=document.getElementById('a'),bp=document.getElementById('bp'),
+    stat=document.getElementById('stat'),viz=document.getElementById('viz'),
+    cur='',playing=false;
+function setStat(t,c){stat.className='stat '+(c||'');stat.innerHTML='<div class="dot"></div>'+t;}
+function pick(el){
+  document.querySelectorAll('.st').forEach(function(s){s.classList.remove('on');});
+  el.classList.add('on'); cur=el.dataset.url; if(playing) startPlay();
+}
+function startPlay(){
+  if(!cur){var f=document.querySelector('.st');if(f){f.classList.add('on');cur=f.dataset.url;}}
+  if(!cur)return; a.src=cur; a.play(); playing=true; bp.textContent='⏸ Pause';
+  viz.classList.add('playing');
+  var n=document.querySelector('.st.on'); setStat(n?n.textContent:'Playing','on');
+}
+function toggle(){
+  if(playing){a.pause();playing=false;bp.textContent='▶ Play';viz.classList.remove('playing');setStat('Paused','pa');}
+  else startPlay();
+}
+function stop(){a.pause();a.src='';playing=false;bp.textContent='▶ Play';viz.classList.remove('playing');setStat('Stopped','');}
+a.onerror=function(){playing=false;viz.classList.remove('playing');setStat('Stream error','er');};
 </script>
 """
 
 # Spotify: always render at same tree position. HTML changes only when
 # the user picks a new track (intentional reload); stable across navigation.
 _sp_track = st.session_state.get("sp_playing_track", "")
-_SP_HTML = (
-    f'<iframe src="https://open.spotify.com/embed/track/{_sp_track}'
-    f'?utm_source=generator&theme=0" width="100%" height="80" frameborder="0"'
-    f' allow="autoplay;clipboard-write;encrypted-media;picture-in-picture"></iframe>'
-    if _sp_track else "<div></div>"
-)
+if _sp_track:
+    _SP_HTML = (
+        "<style>*{box-sizing:border-box;margin:0;padding:0;}"
+        "body{background:transparent;font-family:'Inter',sans-serif;padding:2px 0;}"
+        ".lbl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1db954;margin-bottom:6px;}"
+        ".wrap{border-radius:10px;overflow:hidden;border:1px solid rgba(29,185,84,0.2);}</style>"
+        "<div class='lbl'>🎵 Now Playing</div>"
+        "<div class='wrap'>"
+        f"<iframe src='https://open.spotify.com/embed/track/{_sp_track}"
+        "?utm_source=generator&theme=0' width='100%' height='80' frameborder='0'"
+        " allow='autoplay;clipboard-write;encrypted-media;picture-in-picture'></iframe>"
+        "</div>"
+    )
+    _SP_HEIGHT = 110
+else:
+    _SP_HTML = (
+        "<style>*{box-sizing:border-box;margin:0;padding:0;}"
+        "body{background:transparent;font-family:'Inter',sans-serif;padding:2px 0;}"
+        ".lbl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#475569;margin-bottom:6px;}"
+        ".ph{background:rgba(29,185,84,0.04);border:1px dashed rgba(29,185,84,0.14);border-radius:9px;"
+        "padding:10px 12px;text-align:center;font-size:11px;color:#475569;line-height:1.5;}</style>"
+        "<div class='lbl'>🎵 Spotify</div>"
+        "<div class='ph'>Paste a Spotify track URL on any page to play</div>"
+    )
+    _SP_HEIGHT = 68
 
 with st.sidebar:
     # ① XP bar
@@ -112,9 +158,9 @@ with st.sidebar:
         </div>
     </div>""", unsafe_allow_html=True)
     # ② Radio player  (constant HTML → React never recreates iframe)
-    _components.html(_RADIO_HTML, height=148)
+    _components.html(_RADIO_HTML, height=145)
     # ③ Spotify Now Playing  (same position every render → persists on navigation)
-    _components.html(_SP_HTML, height=84 if _sp_track else 2)
+    _components.html(_SP_HTML, height=_SP_HEIGHT)
 
 # ─────────────────────────────────────────────────────────
 # GLOBAL CSS  (injected once here, available on all pages)
@@ -513,7 +559,7 @@ with st.sidebar:
             cc1, cc2 = st.columns(2)
             with cc1:
                 if st.button("✅ Yes, reset everything", use_container_width=True, key="confirm_yes"):
-                    # RESET FIX applied here — clears all keys including habit_logs, goals, weekly_plans
+                    backup_data()
                     data = {
                         "plan_start": new_start.isoformat(),
                         "plan_weeks": int(new_weeks),

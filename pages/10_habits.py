@@ -31,6 +31,12 @@ if "habit_logs" not in data:
 habits     = data["habits"]
 habit_logs = data["habit_logs"]
 
+# Build goal→habit lookup for tags
+_goal_habit_map = {}  # habit_id -> goal title
+for _g in data.get("goals", []):
+    for _hid in _g.get("linked_habits", []):
+        _goal_habit_map[_hid] = _g.get("title", "")
+
 # ── Streak helpers ────────────────────────────────────────
 def current_streak(hid):
     log = habit_logs.get(hid, {})
@@ -118,6 +124,16 @@ with col_log:
         hid  = h["id"]
         done = habit_logs.get(hid, {}).get(today_str, False)
         key  = f"hab_{hid}"
+        # Goal tag — show which goal this habit supports
+        linked_goal = _goal_habit_map.get(hid, "")
+        if linked_goal:
+            st.markdown(
+                f'<div style="font-size:10px;color:#818cf8;background:rgba(99,102,241,0.12);'
+                f'display:inline-block;padding:1px 8px;border-radius:99px;margin-bottom:2px;'
+                f'font-family:\'JetBrains Mono\',monospace;letter-spacing:0.5px;">'
+                f'🎯 {linked_goal[:30]}</div>',
+                unsafe_allow_html=True,
+            )
         val  = st.checkbox(
             f"{h['icon']} {h['name']}",
             value=done,

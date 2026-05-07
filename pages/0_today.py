@@ -3,7 +3,7 @@ import datetime
 import json
 from utils import (load_data, save_data, get_week_info, QUOTES, SCHEDULE_TEMPLATE,
                    ML_BY_WEEK, AWS_BY_WEEK, PRACTICE_BY_WEEK, JOB_BY_WEEK, get_plan_config,
-                   C, FOCUS_COLORS, threshold_color)
+                   C, FOCUS_COLORS, threshold_color, GOAL_COLORS)
 
 try:
     import requests
@@ -39,6 +39,85 @@ vibe, vibe_emoji = day_labels.get(day_name, ("Study Day", "📋"))
 st.markdown(f'<div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#818cf8;font-family:\'JetBrains Mono\',monospace;margin-bottom:6px;">Day {day_num} of {total_days} &nbsp;·&nbsp; Week {week_num}/{plan_weeks}</div>', unsafe_allow_html=True)
 st.markdown(f'<p class="page-title">{vibe_emoji} {today.strftime("%A, %B %d")}</p>', unsafe_allow_html=True)
 st.markdown(f'<p class="page-sub">{vibe} &nbsp;·&nbsp; {now.strftime("%I:%M %p")}</p>', unsafe_allow_html=True)
+
+# ── Pinned goals: goal-driven command center ─────────────
+pinned_goals = [g for g in data.get("goals", []) if g.get("pinned") and not g.get("completed")]
+if pinned_goals:
+    st.markdown('<div class="sec-title">📌 Today\'s Goals</div>', unsafe_allow_html=True)
+    hab_map  = {h["id"]: h for h in data.get("habits", [])}
+    logs     = data.get("habit_logs", {})
+    goal_cols = st.columns(min(len(pinned_goals), 3))
+    for gi, g in enumerate(pinned_goals[:3]):
+        milestones = g.get("milestones", [])
+        if milestones:
+            g_pct = round(sum(1 for m in milestones if m.get("done")) / len(milestones) * 100)
+        else:
+            # Support auto_metric
+            auto_metric = g.get("auto_metric")
+            auto_target = g.get("auto_target") or 1
+            if auto_metric == "Jobs applied":
+                g_pct = min(100, round(len(data.get("jobs", [])) / auto_target * 100))
+            elif auto_metric == "Focus hours":
+                mins = sum(s.get("minutes", 0) for s in data.get("focus_sessions", []))
+                g_pct = min(100, round((mins / 60) / auto_target * 100))
+            elif auto_metric == "Habit completions":
+                linked = g.get("linked_habits", [])
+                total_c = sum(sum(1 for v in logs.get(hid, {}).values() if v) for hid in linked) if linked else 0
+                g_pct = min(100, round(total_c / auto_target * 100))
+            else:
+                g_pct = g.get("progress", 0)
+
+        color  = GOAL_COLORS.get(g.get("category", "Personal"), C["focus_mid"])
+        target = g.get("target_date", "")
+        days_left = (datetime.date.fromisoformat(target) - today).days if target else None
+
+        if days_left is None:
+            days_txt, days_col = "No deadline", "#475569"
+        elif days_left < 0:
+            days_txt, days_col = f"{abs(days_left)}d overdue", "#ef4444"
+        elif days_left == 0:
+            days_txt, days_col = "Due today!", "#fbbf24"
+        else:
+            days_txt, days_col = f"{days_left}d left", "#64748b"
+
+        # Linked habit dots for today
+        linked_hids = g.get("linked_habits", [])
+        habit_dots_html = ""
+        if linked_hids:
+            dots = []
+            for hid in linked_hids:
+                h = hab_map.get(hid)
+                if h:
+                    done = logs.get(hid, {}).get(today_str, False)
+                    dc = "#34d399" if done else "#334155"
+                    dots.append(f'<span title="{h["name"]}" style="color:{dc};font-size:14px;">{"●" if done else "○"}</span>')
+            if dots:
+                habit_dots_html = (
+                    '<div style="display:flex;gap:4px;align-items:center;margin-top:8px;">'
+                    + "".join(dots) + "</div>"
+                )
+
+        with goal_cols[gi]:
+            st.markdown(f"""
+<div style="background:rgba(255,255,255,0.02);border:1px solid {color}22;border-radius:14px;
+padding:14px 16px;height:100%;">
+  <div style="font-size:12px;font-weight:700;color:{color};text-transform:uppercase;
+  letter-spacing:1px;font-family:'JetBrains Mono',monospace;margin-bottom:6px;">
+    {g.get("category","")}</div>
+  <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:8px;line-height:1.3;">
+    {g["title"]}</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <span style="font-size:18px;font-weight:800;color:{color};font-family:'Outfit';">{g_pct}%</span>
+    <span style="font-size:11px;color:{days_col};font-family:'JetBrains Mono';">{days_txt}</span>
+  </div>
+  <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden;">
+    <div style="width:{g_pct}%;height:100%;background:{color};border-radius:99px;
+    transition:width .6s ease;"></div>
+  </div>
+  {habit_dots_html}
+</div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
 # ── Layout: left (weather + quote + priorities) | right (schedule + progress) ──
 col_left, col_right = st.columns([5, 4], gap="large")

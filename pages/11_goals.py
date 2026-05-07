@@ -68,8 +68,30 @@ def goal_status(g):
         return "Overdue"
     return "Active"
 
+def _habit_rate_30(hid, logs, ref_date):
+    return sum(1 for i in range(30)
+               if logs.get(hid, {}).get((ref_date - datetime.timedelta(days=i)).isoformat()))
+
 def calc_progress(g):
-    """Progress: milestone-based if milestones exist, else manual pct."""
+    """Progress: auto-tracked via live data if auto_metric set, else milestone-based, else manual pct."""
+    auto_metric = g.get("auto_metric")
+    auto_target  = g.get("auto_target") or 1
+
+    if auto_metric == "Jobs applied":
+        return min(100, round(len(data.get("jobs", [])) / auto_target * 100))
+    if auto_metric == "Focus hours":
+        mins = sum(s.get("minutes", 0) for s in data.get("focus_sessions", []))
+        return min(100, round((mins / 60) / auto_target * 100))
+    if auto_metric == "Habit completions":
+        linked = g.get("linked_habits", [])
+        if linked:
+            logs = data.get("habit_logs", {})
+            total = sum(
+                sum(1 for v in logs.get(hid, {}).values() if v)
+                for hid in linked
+            )
+            return min(100, round(total / auto_target * 100))
+
     milestones = g.get("milestones", [])
     if milestones:
         done = sum(1 for m in milestones if m.get("done"))
@@ -111,6 +133,27 @@ with st.expander("➕ Create new goal", expanded=len(goals) == 0):
             height=100,
         )
 
+        # ── Life OS: link habits & auto-tracking ──────────
+        fc3, fc4 = st.columns(2)
+        with fc3:
+            _avail_habits = data.get("habits", [])
+            _hab_opts = {h["id"]: f"{h['icon']} {h['name']}" for h in _avail_habits}
+            g_linked = st.multiselect(
+                "Link habits (evidence for this goal)",
+                options=list(_hab_opts.keys()),
+                format_func=lambda x: _hab_opts.get(x, x),
+                key="new_g_linked",
+            ) if _hab_opts else []
+        with fc4:
+            g_auto = st.selectbox(
+                "Auto-track progress via",
+                ["Manual", "Jobs applied", "Focus hours", "Habit completions"],
+                key="new_g_auto",
+            )
+            g_auto_target = None
+            if g_auto != "Manual":
+                g_auto_target = st.number_input("Target", min_value=1, value=30, key="new_g_auto_target")
+
         if st.form_submit_button("🎯 Add goal", use_container_width=True):
             if g_title.strip():
                 milestones = []
@@ -121,15 +164,18 @@ with st.expander("➕ Create new goal", expanded=len(goals) == 0):
                         if line.strip()
                     ]
                 new_goal = {
-                    "id":          f"goal_{int(datetime.datetime.now().timestamp())}",
-                    "title":       g_title.strip(),
-                    "category":    g_category,
-                    "target_date": g_target.isoformat(),
-                    "progress":    g_progress,
-                    "milestones":  milestones,
-                    "completed":   False,
-                    "pinned":      False,
-                    "created":     today_str,
+                    "id":            f"goal_{int(datetime.datetime.now().timestamp())}",
+                    "title":         g_title.strip(),
+                    "category":      g_category,
+                    "target_date":   g_target.isoformat(),
+                    "progress":      g_progress,
+                    "milestones":    milestones,
+                    "completed":     False,
+                    "pinned":        False,
+                    "created":       today_str,
+                    "linked_habits": g_linked,
+                    "auto_metric":   g_auto if g_auto != "Manual" else None,
+                    "auto_target":   int(g_auto_target) if g_auto_target else None,
                 }
                 data["goals"].append(new_goal)
                 save_data(data)
@@ -211,6 +257,50 @@ def render_goal_section(section_goals, section_title):
   </div>
 </div>
 """, unsafe_allow_html=True)
+
+        # ── Evidence: linked habits + auto-metric readout ─
+        linked_hids = g.get("linked_habits", [])
+        auto_metric  = g.get("auto_metric")
+        if auto_metric or linked_hids:
+            hab_map  = {h["id"]: h for h in data.get("habits", [])}
+            logs     = data.get("habit_logs", {})
+            ev_parts = []
+
+            if auto_metric == "Jobs applied":
+                n = len(data.get("jobs", []))
+                ev_parts.append(f'<span style="color:#fbbf24;">💼</span> {n} / {g.get("auto_target", 0)} jobs applied')
+            elif auto_metric == "Focus hours":
+                hrs = sum(s.get("minutes", 0) for s in data.get("focus_sessions", [])) / 60
+                ev_parts.append(f'<span style="color:#818cf8;">⏱️</span> {hrs:.1f}h / {g.get("auto_target", 0)}h focused')
+            elif auto_metric == "Habit completions":
+                total_c = sum(
+                    sum(1 for v in logs.get(hid, {}).values() if v)
+                    for hid in linked_hids
+                )
+                ev_parts.append(f'<span style="color:#a78bfa;">🔁</span> {total_c} / {g.get("auto_target", 0)} habit completions')
+
+            for hid in linked_hids:
+                h = hab_map.get(hid)
+                if h:
+                    done_today = logs.get(hid, {}).get(today_str, False)
+                    rate_30    = _habit_rate_30(hid, logs, today)
+                    dot_color  = "#34d399" if done_today else "#334155"
+                    ev_parts.append(
+                        f'<span style="color:{dot_color};">●</span> '
+                        f'{h["icon"]} {h["name"][:26]} '
+                        f'<span style="color:#475569;">({rate_30}/30d)</span>'
+                    )
+
+            if ev_parts:
+                rows = "".join(
+                    f'<div style="font-size:11.5px;color:#64748b;padding:2px 0;line-height:1.6;">{p}</div>'
+                    for p in ev_parts
+                )
+                st.markdown(f"""
+<div style="background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.05);
+border-radius:10px;padding:10px 16px;margin-bottom:8px;">
+{rows}
+</div>""", unsafe_allow_html=True)
 
         # Milestone checklist
         milestones = g.get("milestones", [])
