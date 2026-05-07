@@ -25,7 +25,17 @@
       "WebFetch(domain:api.github.com)",
       "Bash(node *)",
       "Bash(git pull *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(pip install *)",
+      "Bash(python -c \"import pages.6_jobs\")",
+      "Bash(python -c ' *)",
+      "Bash(dir \"C:\\\\Users\\\\bazza\\\\Documents\\\\Projects\\\\Python_Projects\\\\prime-dashboard\" /b /a)",
+      "Bash(findstr -i \"backup\\\\|bak\\\\|old\\\\|prime\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\bazza\\\\Documents\\\\Projects\\\\Python_Projects\\\\prime-dashboard\" | Where-Object { $_.Name -match \"backup|bak|old|prime\" } | Select-Object Name, LastWriteTime)",
+      "Bash(python -m py_compile app.py)",
+      "Bash(python -m py_compile pages/11_goals.py)",
+      "Bash(python -m py_compile pages/10_habits.py)",
+      "Bash(python -m py_compile pages/0_today.py)"
     ]
   }
 }

@@ -107,6 +107,16 @@ def save_data(d):
     with open(DATA_FILE, "w") as f:
         json.dump(d, f, indent=2)
 
+def backup_data():
+    """Write a timestamped backup of the current data file before destructive ops."""
+    if not os.path.exists(DATA_FILE):
+        return
+    import datetime as _dt
+    stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"prime_data_backup_{stamp}.json"
+    with open(DATA_FILE, "r") as src, open(backup_path, "w") as dst:
+        dst.write(src.read())
+
 # ─────────────────────────────────────────────────────────
 # DATE / WEEK HELPERS
 # ─────────────────────────────────────────────────────────
