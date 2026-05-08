@@ -241,20 +241,31 @@ border-radius:18px;padding:24px;text-align:center;margin-bottom:20px;">
     if quote_key not in st.session_state:
         fetched = False
         try:
-            gemini_key = st.secrets.get("GEMINI_API_KEY", "")
-            if gemini_key and HAS_REQUESTS:
-                prompt = f"""Generate ONE short motivational quote (max 25 words) for a high-performer
-on a {vibe} ({today.strftime('%A')}). Be original and punchy.
-Return ONLY valid JSON: {{"text": "...", "author": "..."}} where author is the real person or 'Unknown'."""
+            anthropic_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+            if anthropic_key and HAS_REQUESTS:
+                prompt = (
+                    f"Generate ONE short motivational quote (max 25 words) for a high-performer "
+                    f"on a {vibe} ({today.strftime('%A')}). Be original and punchy. "
+                    f'Return ONLY valid JSON: {{"text": "...", "author": "..."}} '
+                    f"where author is a real person or 'Unknown'."
+                )
                 r = requests.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
-                    headers={"Content-Type": "application/json"},
-                    json={"contents": [{"parts": [{"text": prompt}]}],
-                          "generationConfig": {"maxOutputTokens": 120, "temperature": 0.9}},
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-api-key": anthropic_key,
+                        "anthropic-version": "2023-06-01",
+                    },
+                    json={
+                        "model": "claude-haiku-4-5-20251001",
+                        "max_tokens": 120,
+                        "system": "Return only valid JSON. No markdown, no extra text.",
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
                     timeout=10,
                 )
                 if r.status_code == 200:
-                    raw = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    raw = r.json()["content"][0]["text"]
                     s, e = raw.find("{"), raw.rfind("}") + 1
                     st.session_state[quote_key] = json.loads(raw[s:e])
                     fetched = True
